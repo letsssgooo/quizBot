@@ -1,0 +1,13 @@
+{
+  "settings": {
+    "time_per_question": 20
+  },
+  "questions": [
+    {
+      "text": "Вопрос?",
+      "options": ["A", "B"],
+      "correct": 0
+    }
+  ]
+}
+

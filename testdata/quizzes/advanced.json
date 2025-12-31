@@ -1,0 +1,35 @@
+{
+  "title": "Продвинутый квиз с настройками",
+  "settings": {
+    "time_per_question": 15,
+    "shuffle_questions": true,
+    "shuffle_answers": true,
+    "max_participants": 50,
+    "registration": ["name", "group"]
+  },
+  "questions": [
+    {
+      "text": "Лёгкий вопрос за 1 балл",
+      "options": ["Неправильно", "Правильно"],
+      "correct": 1,
+      "points": 1,
+      "time": 10
+    },
+    {
+      "text": "Сложный вопрос за 5 баллов",
+      "options": ["A", "B", "C", "D"],
+      "correct": 2,
+      "explanation": "Правильный ответ — C",
+      "points": 5,
+      "time": 30
+    },
+    {
+      "text": "Вопрос с фиксированным порядком ответов",
+      "options": ["1", "2", "3", "4"],
+      "correct": 0,
+      "points": 2,
+      "shuffle": false
+    }
+  ]
+}
+

@@ -1,0 +1,29 @@
+{
+  "title": "Простой тестовый квиз",
+  "settings": {
+    "time_per_question": 20,
+    "shuffle_questions": false,
+    "shuffle_answers": false
+  },
+  "questions": [
+    {
+      "text": "Что выведет fmt.Println(2 + 2)?",
+      "options": ["3", "4", "5", "22"],
+      "correct": 1,
+      "explanation": "2 + 2 = 4, это арифметическое сложение"
+    },
+    {
+      "text": "Какой тип данных используется для целых чисел в Go?",
+      "options": ["integer", "int", "number", "num"],
+      "correct": 1,
+      "explanation": "В Go для целых чисел используется тип int"
+    },
+    {
+      "text": "Как объявить переменную в Go?",
+      "options": ["let x = 5", "var x = 5", "x := 5", "Оба варианта var и := верны"],
+      "correct": 3,
+      "explanation": "В Go можно использовать как var x = 5, так и x := 5"
+    }
+  ]
+}
+

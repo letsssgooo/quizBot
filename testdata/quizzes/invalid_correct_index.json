@@ -1,0 +1,14 @@
+{
+  "title": "Квиз с неверным индексом",
+  "settings": {
+    "time_per_question": 20
+  },
+  "questions": [
+    {
+      "text": "Вопрос?",
+      "options": ["A", "B", "C"],
+      "correct": 10
+    }
+  ]
+}
+
