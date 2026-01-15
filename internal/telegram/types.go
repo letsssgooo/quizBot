@@ -88,4 +88,7 @@ type Client interface {
 
 	// DownloadFile скачивает файл по пути.
 	DownloadFile(filePath string) ([]byte, error)
+
+	// SendDocument отправляет файл как документ.
+	SendDocument(chatID int64, fileName string, data []byte)
 }

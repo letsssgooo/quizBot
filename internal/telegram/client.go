@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -147,6 +148,55 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+// SendDocument отправляет файл как документ.
+func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) error {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	err := writer.WriteField("chat_id", fmt.Sprint(chatID))
+	if err != nil {
+		return err
+	}
+	multipartWriter, err := writer.CreateFormFile("document", fileName)
+	if err != nil {
+		return err
+	}
+	if _, err = multipartWriter.Write(data); err != nil {
+		return err
+	}
+	writer.Close()
+
+	url := fmt.Sprintf(apiURL, c.token, "sendDocument")
+	req, err := http.NewRequest(http.MethodPost, url, &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var result struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"description"`
+	}
+
+	if err = json.Unmarshal(respData, &result); err != nil {
+		return err
+	}
+
+	if !result.OK {
+		return fmt.Errorf("telegram api error: %s", result.Error)
+	}
+
+	return nil
 }
 
 // doRequest выполняет запрос к Telegram API.
