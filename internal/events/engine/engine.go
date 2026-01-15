@@ -1,6 +1,6 @@
 //go:build !solution
 
-package quiz
+package engine
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func (e *Engine) LoadQuiz(data []byte) (*Quiz, error) {
 	}
 
 	if err := isCorrectQuiz(quiz); err != nil {
-		return nil, fmt.Errorf("can not load quiz, %w", err)
+		return nil, fmt.Errorf("can not load events, %w", err)
 	}
 
 	id := uuid.NewString()
@@ -116,7 +116,7 @@ func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Participant) error {
 	activeQuiz, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return errors.New("lobby of current quiz does not launched")
+		return errors.New("lobby of current events does not launched")
 	}
 
 	if _, ok = activeQuiz.Participants[participant.TelegramID]; ok {
@@ -138,11 +138,11 @@ func (e *Engine) GetParticipantCount(runID string) int {
 func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent, error) {
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return nil, fmt.Errorf("quiz %s is not found", runID)
+		return nil, fmt.Errorf("events %s is not found", runID)
 	}
 
 	if activeQuizRun.Status != RunStatusLobby {
-		return nil, errors.New(`can not start quiz, it is not in status "lobby"`)
+		return nil, errors.New(`can not start events, it is not in status "lobby"`)
 	}
 	activeQuizRun.Status = RunStatusRunning
 
@@ -235,7 +235,7 @@ func (e *Engine) SubmitAnswer(
 ) error {
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusRunning {
-		return fmt.Errorf("quiz %s not running", runID)
+		return fmt.Errorf("events %s not running", runID)
 	}
 
 	questionsLength := len(e.quizzes[activeQuizRun.QuizID].Questions)
@@ -312,7 +312,7 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusFinished {
-		return nil, fmt.Errorf("quiz %s is not finished", runID)
+		return nil, fmt.Errorf("events %s is not finished", runID)
 	}
 
 	results := &QuizResults{
@@ -419,7 +419,7 @@ func (e *Engine) ExportCSV(runID string) ([]byte, error) {
 func (e *Engine) GetRun(runID string) (*QuizRun, error) {
 	_, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return nil, fmt.Errorf("quiz %s is not found", runID)
+		return nil, fmt.Errorf("events %s is not found", runID)
 	}
 
 	return e.activeQuizzesRun[runID], nil

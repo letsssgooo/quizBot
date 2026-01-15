@@ -5,7 +5,7 @@ package storage
 import (
 	"context"
 
-	"github.com/letsssgooo/quizBot/internal/quiz"
+	"github.com/letsssgooo/quizBot/internal/events/engine"
 )
 
 // MemoryStorage реализует Storage в памяти.
@@ -19,17 +19,17 @@ func NewMemoryStorage() *MemoryStorage {
 }
 
 // SaveQuiz сохраняет квиз.
-func (s *MemoryStorage) SaveQuiz(ctx context.Context, q *quiz.Quiz) error {
+func (s *MemoryStorage) SaveQuiz(ctx context.Context, q *engine.Quiz) error {
 	panic("not implemented")
 }
 
 // GetQuiz возвращает квиз по ID.
-func (s *MemoryStorage) GetQuiz(ctx context.Context, id string) (*quiz.Quiz, error) {
+func (s *MemoryStorage) GetQuiz(ctx context.Context, id string) (*engine.Quiz, error) {
 	panic("not implemented")
 }
 
 // ListQuizzes возвращает список квизов пользователя.
-func (s *MemoryStorage) ListQuizzes(ctx context.Context, ownerID int64) ([]*quiz.Quiz, error) {
+func (s *MemoryStorage) ListQuizzes(ctx context.Context, ownerID int64) ([]*engine.Quiz, error) {
 	panic("not implemented")
 }
 
@@ -39,21 +39,21 @@ func (s *MemoryStorage) DeleteQuiz(ctx context.Context, id string) error {
 }
 
 // SaveRun сохраняет запуск квиза.
-func (s *MemoryStorage) SaveRun(ctx context.Context, run *quiz.QuizRun) error {
+func (s *MemoryStorage) SaveRun(ctx context.Context, run *engine.QuizRun) error {
 	panic("not implemented")
 }
 
 // GetRun возвращает запуск по ID.
-func (s *MemoryStorage) GetRun(ctx context.Context, id string) (*quiz.QuizRun, error) {
+func (s *MemoryStorage) GetRun(ctx context.Context, id string) (*engine.QuizRun, error) {
 	panic("not implemented")
 }
 
 // ListRuns возвращает список запусков квиза.
-func (s *MemoryStorage) ListRuns(ctx context.Context, quizID string) ([]*quiz.QuizRun, error) {
+func (s *MemoryStorage) ListRuns(ctx context.Context, quizID string) ([]*engine.QuizRun, error) {
 	panic("not implemented")
 }
 
 // UpdateRun обновляет данные запуска.
-func (s *MemoryStorage) UpdateRun(ctx context.Context, run *quiz.QuizRun) error {
+func (s *MemoryStorage) UpdateRun(ctx context.Context, run *engine.QuizRun) error {
 	panic("not implemented")
 }

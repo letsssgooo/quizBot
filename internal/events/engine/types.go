@@ -1,6 +1,4 @@
-//go:build !change
-
-package quiz
+package engine
 
 import (
 	"context"
@@ -38,7 +36,7 @@ type Question struct {
 }
 
 // QuizRun представляет запуск квиза.
-type QuizRun struct {
+type QuizRun struct { //nolint:revive
 	ID           string
 	QuizID       string
 	Status       RunStatus
@@ -77,7 +75,7 @@ type Answer struct {
 }
 
 // QuizResults содержит результаты квиза.
-type QuizResults struct {
+type QuizResults struct { //nolint:revive
 	RunID       string
 	QuizTitle   string
 	Leaderboard []LeaderboardEntry
@@ -94,7 +92,7 @@ type LeaderboardEntry struct {
 }
 
 // QuizEngine определяет основной интерфейс для работы с квизами.
-type QuizEngine interface {
+type QuizEngine interface { //nolint:revive
 	// LoadQuiz парсит JSON и создаёт квиз.
 	LoadQuiz(data []byte) (*Quiz, error)
 
@@ -144,7 +142,7 @@ type QuizEngine interface {
 }
 
 // QuizEvent представляет событие квиза.
-type QuizEvent struct {
+type QuizEvent struct { //nolint:revive
 	Type        EventType
 	QuestionIdx int
 	Question    *Question

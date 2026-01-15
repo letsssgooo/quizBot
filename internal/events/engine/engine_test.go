@@ -1,6 +1,6 @@
 //go:build !change
 
-package quiz
+package engine
 
 import (
 	"context"

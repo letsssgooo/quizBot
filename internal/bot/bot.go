@@ -1,15 +1,16 @@
 //go:build !solution
 
-package telegram
+package bot
 
 import (
-	"github.com/letsssgooo/quizBot/internal/quiz"
+	"github.com/letsssgooo/quizBot/internal/client"
+	"github.com/letsssgooo/quizBot/internal/events/engine"
 )
 
 // Bot реализует Telegram бота для квизов.
 type Bot struct {
-	client      Client
-	engine      quiz.QuizEngine
+	client      client.Client
+	engine      engine.QuizEngine
 	botUsername string // Username бота для формирования ссылок (например, "my_quiz_bot")
 	// TODO: добавьте необходимые поля
 }
@@ -17,7 +18,7 @@ type Bot struct {
 // NewBot создаёт нового бота.
 // botUsername — username бота без @ (например, "my_quiz_bot").
 // Используется для формирования ссылок: https://t.me/<botUsername>?start=join_<runID>
-func NewBot(client Client, engine quiz.QuizEngine, botUsername string) *Bot {
+func NewBot(client client.Client, engine engine.QuizEngine, botUsername string) *Bot {
 	return &Bot{
 		client:      client,
 		engine:      engine,
@@ -31,6 +32,6 @@ func (b *Bot) Run() error {
 }
 
 // HandleUpdate обрабатывает одно обновление.
-func (b *Bot) HandleUpdate(update Update) error {
+func (b *Bot) HandleUpdate(update client.Update) error {
 	panic("not implemented")
 }

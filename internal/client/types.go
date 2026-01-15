@@ -1,6 +1,6 @@
 //go:build !change
 
-package telegram
+package client
 
 // Update представляет обновление от Telegram.
 type Update struct {

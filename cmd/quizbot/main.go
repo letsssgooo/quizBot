@@ -6,24 +6,25 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/letsssgooo/quizBot/internal/quiz"
-	"github.com/letsssgooo/quizBot/internal/telegram"
+	"github.com/letsssgooo/quizBot/internal/bot"
+	"github.com/letsssgooo/quizBot/internal/client"
+	"github.com/letsssgooo/quizBot/internal/events/engine"
 	"github.com/spf13/pflag"
 )
 
 func main() {
 	log := setupLogger()
 	slog.SetDefault(log)
-	slog.Info("starting quiz bot...")
+	slog.Info("starting events bot...")
 
-	flagToken := pflag.String("token", "", "token of telegram bot")
-	flagBotUsername := pflag.String("bot-username", "", "username of the telegram bot")
+	flagToken := pflag.String("token", "", "token of client bot")
+	flagBotUsername := pflag.String("bot-username", "", "username of the client bot")
 	pflag.Parse()
 
-	client := telegram.NewHTTPClient(*flagToken)
-	engine := quiz.NewEngine()
+	client := client.NewHTTPClient(*flagToken)
+	engine := engine.NewEngine()
 
-	bot := telegram.NewBot(client, engine, *flagBotUsername)
+	bot := bot.NewBot(client, engine, *flagBotUsername)
 
 	err := bot.Run()
 	if err != nil {

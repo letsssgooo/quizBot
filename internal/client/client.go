@@ -1,6 +1,6 @@
 //go:build !solution
 
-package telegram
+package client
 
 import (
 	"bytes"
@@ -196,7 +196,7 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 		return err
 	}
 	if !result.OK {
-		return fmt.Errorf("telegram api error: %s", result.Error)
+		return fmt.Errorf("client api error: %s", result.Error)
 	}
 	return nil
 }
@@ -232,7 +232,7 @@ func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (js
 	}
 
 	if !result.OK {
-		return nil, fmt.Errorf("telegram api error: %s", result.Error)
+		return nil, fmt.Errorf("client api error: %s", result.Error)
 	}
 
 	return result.Result, nil
