@@ -90,5 +90,5 @@ type Client interface {
 	DownloadFile(filePath string) ([]byte, error)
 
 	// SendDocument отправляет файл как документ.
-	SendDocument(chatID int64, fileName string, data []byte)
+	SendDocument(chatID int64, fileName string, data []byte) error
 }

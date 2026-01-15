@@ -141,6 +141,7 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
@@ -158,10 +159,12 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 	if err != nil {
 		return err
 	}
+
 	multipartWriter, err := writer.CreateFormFile("document", fileName)
 	if err != nil {
 		return err
 	}
+
 	if _, err = multipartWriter.Write(data); err != nil {
 		return err
 	}
@@ -172,12 +175,14 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 	if err != nil {
 		return err
 	}
+
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -187,15 +192,12 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 		OK    bool   `json:"ok"`
 		Error string `json:"description"`
 	}
-
 	if err = json.Unmarshal(respData, &result); err != nil {
 		return err
 	}
-
 	if !result.OK {
 		return fmt.Errorf("telegram api error: %s", result.Error)
 	}
-
 	return nil
 }
 

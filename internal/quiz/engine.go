@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -108,7 +107,6 @@ func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 		Answers:      make(map[int64][]Answer),
 		StartedAt:    time.Now(),
 	}
-	slog.Debug("start id: ", activeQuiz.ID)
 	e.activeQuizzesRun[activeQuiz.ID] = activeQuiz
 
 	return activeQuiz, nil
@@ -117,7 +115,6 @@ func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 // JoinRun добавляет участника в запуск квиза.
 func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Participant) error {
 	activeQuiz, ok := e.activeQuizzesRun[runID]
-	slog.Debug("join run id: ", runID)
 	if !ok {
 		return errors.New("lobby of current quiz does not launched")
 	}
@@ -216,7 +213,6 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 
 		quizResults, err := e.GetResults(runID)
 		if err != nil {
-			slog.Debug("error while getting quiz results:", "err", err)
 			return
 		}
 

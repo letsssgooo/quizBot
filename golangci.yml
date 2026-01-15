@@ -1,0 +1,109 @@
+# Defines the configuration version.
+# The only possible value is "2".
+version: "2"
+
+# options for analysis running
+run:
+  # default concurrency is a available CPU number
+  concurrency: 8
+
+  # Timeout for total work, e.g. 30s, 5m, 5m30s.
+  # If the value is lower or equal to 0, the timeout is disabled.
+  # Default: 0 (disabled)
+  timeout: 5m
+
+  # exit code when at least one issue was found, default is 1
+  issues-exit-code: 1
+
+  # include test files or not, default is true
+  tests: true
+
+
+# output configuration options
+output:
+  # The formats used to render issues.
+  formats:
+    # Prints issues in a text format with colors, line number, and linter name.
+    # This format is the default format.
+    text:
+      # Output path can be either `stdout`, `stderr` or path to the file to write to.
+      # Default: stdout
+      path: stdout
+      # Print linter name in the end of issue text.
+      # Default: true
+      print-linter-name: true
+      # Print lines of code with issue.
+      # Default: true
+      print-issued-lines: true
+      # Use colors.
+      # Default: true
+      colors: true
+
+formatters:
+  settings:
+    gofmt:
+      # simplify code: gofmt with `-s` option, true by default
+      simplify: true
+
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+    - swaggo
+
+# all available settings of specific linters
+linters:
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    staticcheck:
+      # https://staticcheck.io/docs/options#checks
+      checks: ["all", "-ST1018"]
+      # https://staticcheck.io/docs/options#initialisms
+      initialisms: [
+        "ACL", "API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "QPS",
+        "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID", "URI", "URL",
+        "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "CSV",
+      ]
+
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - wsl_v5
+
+  # Defines a set of rules to ignore issues.
+  # It does not skip the analysis, and so does not ignore "typecheck" errors.
+  exclusions:
+    # Predefined exclusion rules.
+    # Default: []
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    # Excluding configuration per-path, per-linter, per-text and per-source.
+    rules:
+      - path: '(.+)\.go$'
+        text: "Using the variable on range scope .* in function literal"
+
+
+issues:
+  # Maximum issues count per one linter.
+  # Set to 0 to disable.
+  # Default: 50
+  max-issues-per-linter: 0
+
+  # Maximum count of issues with the same text.
+  # Set to 0 to disable.
+  # Default: 3
+  max-same-issues: 0
