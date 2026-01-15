@@ -1,5 +1,3 @@
-//go:build !solution
-
 package bot
 
 import (
