@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/slon/shad-go/Exam-1-QuizBot/quizbot/internal/quiz"
+	"github.com/letsssgooo/quizBot/internal/quiz"
 )
 
 // Bot реализует Telegram бота для квизов.

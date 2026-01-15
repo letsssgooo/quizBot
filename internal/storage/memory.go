@@ -5,7 +5,7 @@ package storage
 import (
 	"context"
 
-	"gitlab.com/slon/shad-go/Exam-1-QuizBot/quizbot/internal/quiz"
+	"github.com/letsssgooo/quizBot/internal/quiz"
 )
 
 // MemoryStorage реализует Storage в памяти.

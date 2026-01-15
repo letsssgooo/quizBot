@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/letsssgooo/quizBot/internal/quiz"
+	"github.com/letsssgooo/quizBot/internal/telegram"
 	"github.com/spf13/pflag"
-	"gitlab.com/slon/shad-go/Exam-1-QuizBot/quizbot/internal/quiz"
-	"gitlab.com/slon/shad-go/Exam-1-QuizBot/quizbot/internal/telegram"
 )
 
 func main() {
