@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 )
 
 const apiURL = "https://api.telegram.org/bot%s/%s"
@@ -17,7 +18,7 @@ type HTTPClient struct {
 	httpClient *http.Client
 }
 
-// NewHTTPClient создаёт нового HTTP клиента Telegram.
+// NewHTTPClient создаёт нового HTTP клиента Telegram по переданному токену
 func NewHTTPClient(token string) *HTTPClient {
 	return &HTTPClient{
 		token:      token,
@@ -25,7 +26,8 @@ func NewHTTPClient(token string) *HTTPClient {
 	}
 }
 
-// SendMessage отправляет сообщение.
+// SendMessage отправляет сообщение text в чат chatID.
+// Возвращает указатель на структуру Message в случае успеха.
 func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (*Message, error) {
 	params := map[string]interface{}{
 		"chat_id": chatID,
@@ -33,8 +35,13 @@ func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (
 	}
 
 	if opts != nil {
-		params["parse_mode"] = opts.ParseMode
-		params["reply_markup"] = opts.ReplyMarkup
+		if opts.ParseMode != "" {
+			params["parse_mode"] = opts.ParseMode
+		}
+
+		if opts.ReplyMarkup != nil {
+			params["reply_markup"] = opts.ReplyMarkup
+		}
 	}
 
 	rawResp, err := c.doRequest("SendMessage", params)
@@ -49,7 +56,8 @@ func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (
 	return &message, nil
 }
 
-// EditMessage редактирует сообщение.
+// EditMessage изменяет сообщение messageID на text в чате chatID.
+// Возвращает nil в случае успеха.
 func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts *SendOptions) error {
 	params := map[string]interface{}{
 		"chat_id":    chatID,
@@ -58,8 +66,13 @@ func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts 
 	}
 
 	if opts != nil {
-		params["parse_mode"] = opts.ParseMode
-		params["reply_markup"] = opts.ReplyMarkup
+		if opts.ParseMode != "" {
+			params["parse_mode"] = opts.ParseMode
+		}
+
+		if opts.ReplyMarkup != nil {
+			params["reply_markup"] = opts.ReplyMarkup
+		}
 	}
 
 	_, err := c.doRequest("editMessageText", params)
@@ -69,7 +82,8 @@ func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts 
 	return nil
 }
 
-// DeleteMessage удаляет сообщение.
+// DeleteMessage удаляет сообщение messageID в чате chatID.
+// Возращает nil в случае успеха.
 func (c *HTTPClient) DeleteMessage(chatID int64, messageID int) error {
 	params := map[string]interface{}{
 		"chat_id":    chatID,
@@ -82,7 +96,8 @@ func (c *HTTPClient) DeleteMessage(chatID int64, messageID int) error {
 	return nil
 }
 
-// AnswerCallback отвечает на callback query.
+// AnswerCallback отвечает сообщением text на callback query с идентификатором callbackID.
+// Возращает nil в случае успеха.
 func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 	params := map[string]interface{}{
 		"callback_query_id": callbackID,
@@ -95,13 +110,13 @@ func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 	return nil
 }
 
-// GetUpdates получает обновления.
+// GetUpdates получает и возвращает обновления.
 func (c *HTTPClient) GetUpdates(offset int, timeout int) ([]Update, error) {
 	params := map[string]interface{}{
 		"offset":  offset,
 		"timeout": timeout,
 	}
-	rawResp, err := c.doRequest("GetUpdates", params)
+	rawResp, err := c.doRequest("getUpdates", params)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +127,8 @@ func (c *HTTPClient) GetUpdates(offset int, timeout int) ([]Update, error) {
 	return updates, nil
 }
 
-// GetFile получает информацию о файле.
+// GetFile получает информацию о файле с идентификатором fileID.
+// Возращает путь файла в случае успеха.
 func (c *HTTPClient) GetFile(fileID string) (string, error) {
 	params := map[string]interface{}{
 		"file_id": fileID,
@@ -123,7 +139,10 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 	}
 
 	var file struct {
-		FilePath string `json:"file_path"`
+		FileID       string `json:"file_id"`
+		FileUniqueID string `json:"file_unique_id"`
+		FileSize     int    `json:"file_size"`
+		FilePath     string `json:"file_path"`
 	}
 
 	if err = json.Unmarshal(rawResp, &file); err != nil {
@@ -132,58 +151,63 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 	return file.FilePath, nil
 }
 
-// DownloadFile скачивает файл.
+// DownloadFile скачивает файл с путем filePath.
+// Возращает содержимое файла в случае успеха.
 func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	linkForDownload := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", c.token, filePath)
 	resp, err := c.httpClient.Get(linkForDownload)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to download the request from the link %s: %w", linkForDownload, err)
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status code %d for link %s", resp.StatusCode, linkForDownload)
+	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body in DownloadFile: %w", err)
 	}
 	return data, nil
 }
 
-// SendDocument отправляет файл как документ.
+// SendDocument отправляет файл с названием fileName и содержимым data в чат chatID как документ.
+// Возвращает nil в случае успеха.
 func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) error {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	err := writer.WriteField("chat_id", fmt.Sprint(chatID))
+	err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add chat_id field to multipart form: %w", err)
 	}
 
 	multipartWriter, err := writer.CreateFormFile("document", fileName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create form file: %w", err)
 	}
 
 	if _, err = multipartWriter.Write(data); err != nil {
-		return err
+		return fmt.Errorf("failed to write data to multipart form: %w", err)
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	url := fmt.Sprintf(apiURL, c.token, "sendDocument")
-	req, err := http.NewRequest(http.MethodPost, url, &buf)
-	if err != nil {
-		return err
-	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Post(url, writer.FormDataContentType(), &buf)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to do post request for url %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read response body in SendDocument: %w", err)
 	}
 
 	var result struct {
@@ -200,6 +224,7 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 }
 
 // doRequest выполняет запрос к Telegram API.
+// Возвращает результат запроса в случае успеха.
 func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (json.RawMessage, error) {
 	url := fmt.Sprintf(apiURL, c.token, method)
 
@@ -212,7 +237,9 @@ func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (js
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
