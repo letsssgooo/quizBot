@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"math/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,12 +18,13 @@ import (
 
 // Engine реализует QuizEngine.
 type Engine struct {
-	quizzes                       map[string]*Quiz
-	activeQuizzesRun              map[string]*QuizRun
+	quizzes                       map[string]*Quiz // ключ - quizID
+	activeQuizzesRun              map[string]*QuizRun // ключ - runID
+	runIDToEvents				  map[string]chan QuizEvent
 	runIDToQuestionNumber         map[string]int
-	participantIDToQuestionNumber map[int64]map[int]struct{}
 	startTimeOfQuestion           map[int]time.Time
-	mu                            sync.RWMutex
+	quizErrChan 				  map[string]chan struct{} // для выхода из горутины при ошибке
+	mu                            sync.Mutex
 }
 
 // NewEngine создаёт новый QuizEngine.
@@ -29,156 +32,213 @@ func NewEngine() *Engine {
 	return &Engine{
 		quizzes:                       make(map[string]*Quiz),
 		activeQuizzesRun:              make(map[string]*QuizRun),
+		runIDToEvents: 				   make(map[string]chan QuizEvent),
 		runIDToQuestionNumber:         make(map[string]int),
-		participantIDToQuestionNumber: make(map[int64]map[int]struct{}),
 		startTimeOfQuestion:           make(map[int]time.Time),
+		quizErrChan: 				   make(map[string]chan struct{}),
 	}
 }
 
 // LoadQuiz парсит JSON и создаёт квиз.
+// Возвращает указатель на загруженный квиз.
 func (e *Engine) LoadQuiz(data []byte) (*Quiz, error) {
-	quiz := &Quiz{}
+	quiz := & Quiz  {}
 	if err := json.Unmarshal(data, quiz); err != nil {
 		return nil, err
 	}
 
 	if err := isCorrectQuiz(quiz); err != nil {
-		return nil, fmt.Errorf("can not load events, %w", err)
+		return nil, fmt.Errorf("cannot load events, %w", err)
 	}
 
-	id := uuid.NewString()
-	e.quizzes[id] = quiz
-	quiz.ID = id
+	quizID := uuid.NewString()
+
+	e.mu.Lock()
+	e.quizzes[quizID] = quiz
+	e.mu.Unlock()
+
+	quiz.ID = quizID
 
 	return quiz, nil
 }
 
 // StartRun создаёт новый запуск квиза.
+// Возвращает указатель на запуск квиза.
 func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
-	activeQuiz := &QuizRun{
-		ID:           uuid.NewString(),
+	if quiz == nil {
+		return nil, errors.New("quiz object is nil")
+	}
+
+	runID := uuid.NewString()
+	activeQuizRun := &QuizRun{
+		ID:           runID,
 		QuizID:       quiz.ID,
 		Status:       RunStatusLobby,
 		Participants: make(map[int64]*Participant),
 		Answers:      make(map[int64][]Answer),
 		StartedAt:    time.Now(),
 	}
-	e.activeQuizzesRun[activeQuiz.ID] = activeQuiz
+	e.mu.Lock()
+	e.activeQuizzesRun[runID] = activeQuizRun
+	e.mu.Unlock()
 
-	return activeQuiz, nil
+	return activeQuizRun, nil
 }
 
 // JoinRun добавляет участника в запуск квиза.
 func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Participant) error {
-	activeQuiz, ok := e.activeQuizzesRun[runID]
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if participant == nil {
+		return errors.New("participant object is nil")
+	}
+
+	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
 		return errors.New("lobby of current events does not launched")
 	}
 
-	if _, ok = activeQuiz.Participants[participant.TelegramID]; ok {
+	quiz := e.quizzes[activeQuizRun.QuizID]
+	if quiz.Settings.MaxParticipants != 0 &&
+		len(activeQuizRun.Participants) >= quiz.Settings.MaxParticipants {
+		return errors.New("lobby has reached maximum capacity")
+	}
+
+	if _, ok = activeQuizRun.Participants[participant.TelegramID]; ok {
 		return errors.New("participant already joined")
 	}
 
-	activeQuiz.Participants[participant.TelegramID] = participant
-
+	activeQuizRun.Participants[participant.TelegramID] = participant
+	activeQuizRun.Answers[participant.TelegramID] = make([]Answer, 0, len(quiz.Questions))
+	participant.JoinedAt = time.Now()
+	
 	return nil
 }
 
 // GetParticipantCount возвращает текущее количество участников.
 func (e *Engine) GetParticipantCount(runID string) int {
-	activeQuiz := e.activeQuizzesRun[runID]
-	return len(activeQuiz.Participants)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	
+	activeQuizRun := e.activeQuizzesRun[runID]
+
+	return len(activeQuizRun.Participants)
 }
 
 // StartQuiz запускает квиз.
-func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent, error) {
+// Возвращает канал событий квиза.
+func (e *Engine) StartQuiz(ctx  context.Context, runID string) (<-chan QuizEvent, error) {
+	e.mu.Lock()
+
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
+		e.mu.Unlock()
 		return nil, fmt.Errorf("events %s is not found", runID)
 	}
 
 	if activeQuizRun.Status != RunStatusLobby {
+		e.mu.Unlock()
 		return nil, errors.New(`can not start events, it is not in status "lobby"`)
 	}
 	activeQuizRun.Status = RunStatusRunning
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
 
-	quizEvents := make(chan QuizEvent)
+	e.runIDToEvents[runID] = make(chan QuizEvent, MaxCountOfEvents)
+	quizEvents := e.runIDToEvents[runID]
+	e.quizErrChan[runID] = make(chan struct{}, 1)
+
+	e.mu.Unlock()
 
 	go func() {
 		defer close(quizEvents)
 
 		for i, question := range quiz.Questions {
-			e.mu.Lock()
-
-			e.runIDToQuestionNumber[runID] = i
-
-			e.startTimeOfQuestion[i] = time.Now()
-
-			e.mu.Unlock()
-
-			timePerQuestion := quiz.Settings.TimePerQuestion
-			if question.Time != 0 {
-				timePerQuestion = question.Time
-			}
-
-			questionEvent := QuizEvent{
-				Type:        EventTypeQuestion,
-				QuestionIdx: i,
-				Question:    &question,
-				TimeLeft:    time.Duration(timePerQuestion) * time.Second,
-			}
-			quizEvents <- questionEvent
-
-			timer := time.NewTimer(time.Duration(timePerQuestion) * time.Second)
-
 			select {
-			case <-timer.C:
-				questionIsAnswered := false
-
-				e.mu.RLock()
-
-				for _, participant := range activeQuizRun.Participants {
-					if _, ok = e.participantIDToQuestionNumber[participant.TelegramID][i]; ok {
-						questionIsAnswered = true
-						break
-					}
-				}
-
-				e.mu.RUnlock()
-
-				if !questionIsAnswered {
-					timeEvent := QuizEvent{
-						Type:        EventTypeTimeUp,
-						QuestionIdx: i,
-						Question:    &question,
-					}
-					quizEvents <- timeEvent
-				}
 			case <-ctx.Done():
-				break
+				return
+			default:
+				e.mu.Lock()
+
+				e.runIDToQuestionNumber[runID] = i
+
+				e.startTimeOfQuestion[i] = time.Now()
+
+				e.mu.Unlock()
+
+				timePerQuestion := quiz.Settings.TimePerQuestion
+				if question.Time != 0 {
+					timePerQuestion = question.Time
+				}
+
+				questionEvent := QuizEvent{
+					Type:        EventTypeQuestion,
+					QuestionIdx: i,
+					Question:    &question,
+					TimeLeft:    time.Duration(timePerQuestion) * time.Second,
+				}
+				quizEvents <- questionEvent
+
+				ok := e.waitEndOfQuestion(ctx, activeQuizRun, i, timePerQuestion, quiz, quizEvents, e.quizErrChan[runID])
+				if !ok {
+					return
+				}
 			}
 		}
 
 		e.mu.Lock()
 
 		activeQuizRun.Status = RunStatusFinished
+		activeQuizRun.FinishedAt = time.Now()
 
 		e.mu.Unlock()
 
-		quizResults, err := e.GetResults(runID)
-		if err != nil {
-			return
-		}
-
 		quizEvents <- QuizEvent{
 			Type:    EventTypeFinished,
-			Results: quizResults,
 		}
 	}()
 
 	return quizEvents, nil
+}
+
+// ShuffleAnswers перемешивает порядок ответов на вопрос.
+func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error {
+	if event.Type != EventTypeQuestion {
+		return errors.New("event type must be a question type")
+	} 
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	activeQuizRun, ok := e.activeQuizzesRun[runID]
+	if !ok {
+		return errors.New("lobby of current events does not launched")
+	}
+
+	quiz := e.quizzes[activeQuizRun.QuizID]
+
+	randGen := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for k := range quiz.Questions {
+		options := quiz.Questions[k].Options
+
+		correctOption := options[quiz.Questions[k].Correct]
+		if quiz.Questions[k].Shuffle != nil && *quiz.Questions[k].Shuffle {
+			randGen.Shuffle(len(options), func(i, j int) {
+				quiz.Questions[k].Options[i], quiz.Questions[k].Options[j] = quiz.Questions[k].Options[j], quiz.Questions[k].Options[i]
+			})
+
+			for j, option := range options {
+				if option == correctOption {
+					quiz.Questions[k].Correct = j
+					break
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // SubmitAnswer регистрирует ответ участника.
@@ -189,28 +249,38 @@ func (e *Engine) SubmitAnswer(
 	questionIdx int,
 	answerIdx int,
 ) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	quizErrChan := e.quizErrChan[runID]
+
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusRunning {
+		close(quizErrChan)
 		return fmt.Errorf("events %s not running", runID)
 	}
 
-	questionsLength := len(e.quizzes[activeQuizRun.QuizID].Questions)
+	quiz := e.quizzes[activeQuizRun.QuizID]
+	questionsLength := len(quiz.Questions)
 	if questionIdx < 0 || questionIdx >= questionsLength {
+		close(quizErrChan)
 		return errors.New("invalid index of answer")
 	}
 
-	optionsLength := len(e.quizzes[activeQuizRun.QuizID].Questions[questionIdx].Options)
+	optionsLength := len(quiz.Questions[questionIdx].Options)
 	if answerIdx < 0 || answerIdx >= optionsLength {
+		close(quizErrChan)
 		return errors.New("invalid index of answer")
 	}
 
-	if _, ok = e.participantIDToQuestionNumber[participantID][questionIdx]; ok {
-		return nil
+	if _, ok = activeQuizRun.Participants[participantID]; !ok {
+		close(quizErrChan)
+		return fmt.Errorf("no such participant with id %d", participantID)
 	}
 
 	isCorrect := false
 
-	question := e.quizzes[activeQuizRun.QuizID].Questions[questionIdx]
+	question := quiz.Questions[questionIdx]
 	if question.Correct == answerIdx {
 		isCorrect = true
 	}
@@ -226,11 +296,6 @@ func (e *Engine) SubmitAnswer(
 		answer.Points += question.Points
 	}
 
-	if e.participantIDToQuestionNumber[participantID] == nil {
-		e.participantIDToQuestionNumber[participantID] = make(map[int]struct{})
-	}
-
-	e.participantIDToQuestionNumber[participantID][questionIdx] = struct{}{}
 	activeQuizRun.Answers[participantID] = append(activeQuizRun.Answers[participantID], answer)
 
 	return nil
@@ -243,8 +308,13 @@ func (e *Engine) SubmitAnswerByLetter(
 	participantID int64,
 	letter string,
 ) error {
+	e.mu.Lock()
+	quizErrChan := e.quizErrChan[runID]
+	e.mu.Unlock()
+
 	answerIndex, ok := LetterToIndex(letter)
 	if !ok {
+		close(quizErrChan)
 		return errors.New("can not convert letter to index, invalid input")
 	}
 
@@ -253,6 +323,9 @@ func (e *Engine) SubmitAnswerByLetter(
 
 // GetCurrentQuestion возвращает текущий номер вопроса.
 func (e *Engine) GetCurrentQuestion(runID string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusRunning {
 		return -1
@@ -263,8 +336,8 @@ func (e *Engine) GetCurrentQuestion(runID string) int {
 
 // GetResults возвращает результаты квиза.
 func (e *Engine) GetResults(runID string) (*QuizResults, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusFinished {
@@ -275,11 +348,11 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 		RunID:       runID,
 		QuizTitle:   e.quizzes[activeQuizRun.QuizID].Title,
 		Leaderboard: make([]LeaderboardEntry, 0, len(activeQuizRun.Participants)),
-		TotalTime:   time.Since(activeQuizRun.StartedAt),
+		TotalTime:   activeQuizRun.FinishedAt.Sub(activeQuizRun.StartedAt),
 	}
 
 	for participantTelegramID, participant := range activeQuizRun.Participants {
-		participantResult := 0
+		participantScore := 0
 		correctCount := 0
 
 		var timeResult time.Duration
@@ -288,9 +361,9 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 		for _, answer := range answers {
 			if answer.IsCorrect {
 				if answer.Points == 0 {
-					participantResult += 1
+					participantScore += 1
 				} else {
-					participantResult += answer.Points
+					participantScore += answer.Points
 				}
 
 				correctCount++
@@ -301,9 +374,10 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 
 		results.Leaderboard = append(results.Leaderboard, LeaderboardEntry{
 			Participant:  participant,
-			Score:        participantResult,
+			Score:        participantScore,
 			CorrectCount: correctCount,
 			TotalTime:    timeResult,
+			Rank: 0,
 		})
 	}
 
@@ -329,43 +403,40 @@ func (e *Engine) ExportCSV(runID string) ([]byte, error) {
 		return nil, err
 	}
 
-	leaderboard := make([][]string, len(quizResults.Leaderboard)+1)
-	leaderboard[0] = []string{
-		"Rank",
-		"TelegramID",
-		"Username",
-		"FirstName",
-		"LastName",
-		"Score",
-		"CorrectCount",
-		"TotalTime",
-	}
-	for i, line := range quizResults.Leaderboard {
-		rank := fmt.Sprintf("%d", line.Rank)
-		telegramID := fmt.Sprintf("%d", line.Participant.TelegramID)
-		username := line.Participant.Username
-		firstName := line.Participant.FirstName
-		lastName := line.Participant.LastName
-		score := fmt.Sprintf("%d", line.Score)
-		correctCount := fmt.Sprintf("%d", line.CorrectCount)
-		totalTime := fmt.Sprintf("%v", line.TotalTime.Seconds())
-		leaderboard[i+1] = []string{
-			rank,
-			telegramID,
-			username,
-			firstName,
-			lastName,
-			score,
-			correctCount,
-			totalTime,
-		}
+	var buf bytes.Buffer
+
+	w := csv.NewWriter(&buf)
+	_ = w.Write(
+		[]string{
+			"Rank",
+			"TelegramID",
+			"Username",
+			"FirstName",
+			"LastName",
+			"Score",
+			"CorrectCount",
+			"TotalTime",
+		},
+	)
+
+	for _, ld := range quizResults.Leaderboard {
+		_ = w.Write([]string{
+			strconv.Itoa(ld.Rank),
+			strconv.FormatInt(ld.Participant.TelegramID, 10),
+			ld.Participant.Username,
+			ld.Participant.FirstName,
+			ld.Participant.LastName,
+			strconv.Itoa(ld.Score),
+			strconv.Itoa(ld.CorrectCount),
+			ld.TotalTime.String(),
+		})
 	}
 
-	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
-	err = w.WriteAll(leaderboard)
+	w.Flush()
+
+	err = w.Error()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to flush buffer: %w", err)
 	}
 
 	return buf.Bytes(), nil
@@ -373,10 +444,68 @@ func (e *Engine) ExportCSV(runID string) ([]byte, error) {
 
 // GetRun возвращает запуск по ID.
 func (e *Engine) GetRun(runID string) (*QuizRun, error) {
-	_, ok := e.activeQuizzesRun[runID]
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
 		return nil, fmt.Errorf("events %s is not found", runID)
 	}
 
-	return e.activeQuizzesRun[runID], nil
+	return activeQuizRun, nil
+}
+
+// waitEndOfQuestion ждет окончание вопроса.
+func (e *Engine) waitEndOfQuestion(
+	ctx context.Context,
+	activeQuizRun *QuizRun,
+	questionIndex, questionTime int,
+	quiz *Quiz,
+	events chan QuizEvent,
+	quizErrChan chan struct{},
+) bool {
+	timer := time.NewTimer(time.Duration(questionTime) * time.Second)
+	timeToCheckForAllAnswers := time.NewTicker(time.Second / 10)
+
+	for {
+		select {
+		case <-timer.C:
+			e.mu.Lock()
+
+			event := QuizEvent{
+				Type:        EventTypeTimeUp,
+				QuestionIdx: questionIndex,
+				Question:    &quiz.Questions[questionIndex],
+			}
+			events <- event
+
+			e.mu.Unlock()
+
+			return true
+		case <-timeToCheckForAllAnswers.C:
+			e.mu.Lock()
+
+			answeredCnt := 0
+
+			for _, answers := range activeQuizRun.Answers {
+				for _, answer := range answers {
+					if answer.QuestionIdx == questionIndex {
+						answeredCnt++
+						break
+					}
+				}
+			}
+
+			if answeredCnt == len(activeQuizRun.Participants) {
+				e.mu.Unlock()
+				return true
+			}
+
+			e.mu.Unlock()
+		case <-quizErrChan:
+			return false
+		case <-ctx.Done():
+			return false
+		}
+	}
 }

@@ -159,6 +159,9 @@ const (
 	EventTypeFinished EventType = "finished"
 )
 
+// MaxCountOfEvents - лимит событий в квизе.
+const MaxCountOfEvents int64 = 1000
+
 // AnswerLetters — допустимые буквы для ответов (A-F для до 6 вариантов).
 var AnswerLetters = []string{"A", "B", "C", "D", "E", "F"}
 
