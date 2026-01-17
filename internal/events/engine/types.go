@@ -109,6 +109,9 @@ type QuizEngine interface { //nolint:revive
 	// Возвращает канал для уведомлений о событиях квиза.
 	StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent, error)
 
+	// ShuffleAnswers перемешивает порядок ответов на вопрос.
+	ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error
+
 	// SubmitAnswer регистрирует ответ участника по индексу (0-based).
 	SubmitAnswer(
 		ctx context.Context,

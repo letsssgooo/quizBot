@@ -42,7 +42,7 @@ func NewEngine() *Engine {
 // LoadQuiz парсит JSON и создаёт квиз.
 // Возвращает указатель на загруженный квиз.
 func (e *Engine) LoadQuiz(data []byte) (*Quiz, error) {
-	quiz := & Quiz  {}
+	quiz := &Quiz{}
 	if err := json.Unmarshal(data, quiz); err != nil {
 		return nil, err
 	}
