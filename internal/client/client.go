@@ -96,7 +96,8 @@ func (c *HTTPClient) DeleteMessage(chatID int64, messageID int) error {
 	return nil
 }
 
-// AnswerCallback отвечает сообщением text на callback query с идентификатором callbackID.
+// AnswerCallback отвечает уведомлением в верхней части экрана чата (см. документацию
+// telegram api) на callback query с идентификатором callbackID.
 // Возращает nil в случае успеха.
 func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 	params := map[string]interface{}{
@@ -110,7 +111,10 @@ func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 	return nil
 }
 
-// GetUpdates получает и возвращает обновления.
+// GetUpdates получает обновления.
+// Если новых обновлений нет, ждёт до timeout секунд.
+// Возвращает слайс Update.
+// Для продолжения обработки нужно передать offset = lastUpdateID + 1.
 func (c *HTTPClient) GetUpdates(offset int, timeout int) ([]Update, error) {
 	params := map[string]interface{}{
 		"offset":  offset,
@@ -180,6 +184,9 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) error {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
+	defer func() {
+		_ = writer.Close()
+	}()
 	err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10))
 	if err != nil {
 		return fmt.Errorf("failed to add chat_id field to multipart form: %w", err)
@@ -193,7 +200,6 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 	if _, err = multipartWriter.Write(data); err != nil {
 		return fmt.Errorf("failed to write data to multipart form: %w", err)
 	}
-	_ = writer.Close()
 
 	url := fmt.Sprintf(apiURL, c.token, "sendDocument")
 
