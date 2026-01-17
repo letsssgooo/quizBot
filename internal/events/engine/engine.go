@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"math/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"sync"
@@ -18,24 +18,24 @@ import (
 
 // Engine реализует QuizEngine.
 type Engine struct {
-	quizzes                       map[string]*Quiz // ключ - quizID
-	activeQuizzesRun              map[string]*QuizRun // ключ - runID
-	runIDToEvents				  map[string]chan QuizEvent
-	runIDToQuestionNumber         map[string]int
-	startTimeOfQuestion           map[int]time.Time
-	quizErrChan 				  map[string]chan struct{} // для выхода из горутины при ошибке
-	mu                            sync.Mutex
+	quizzes               map[string]*Quiz    // ключ - quizID
+	activeQuizzesRun      map[string]*QuizRun // ключ - runID
+	runIDToEvents         map[string]chan QuizEvent
+	runIDToQuestionNumber map[string]int
+	startTimeOfQuestion   map[int]time.Time
+	quizErrChan           map[string]chan struct{} // для выхода из горутины при ошибке
+	mu                    sync.Mutex
 }
 
 // NewEngine создаёт новый QuizEngine.
 func NewEngine() *Engine {
 	return &Engine{
-		quizzes:                       make(map[string]*Quiz),
-		activeQuizzesRun:              make(map[string]*QuizRun),
-		runIDToEvents: 				   make(map[string]chan QuizEvent),
-		runIDToQuestionNumber:         make(map[string]int),
-		startTimeOfQuestion:           make(map[int]time.Time),
-		quizErrChan: 				   make(map[string]chan struct{}),
+		quizzes:               make(map[string]*Quiz),
+		activeQuizzesRun:      make(map[string]*QuizRun),
+		runIDToEvents:         make(map[string]chan QuizEvent),
+		runIDToQuestionNumber: make(map[string]int),
+		startTimeOfQuestion:   make(map[int]time.Time),
+		quizErrChan:           make(map[string]chan struct{}),
 	}
 }
 
@@ -112,7 +112,7 @@ func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Partici
 	activeQuizRun.Participants[participant.TelegramID] = participant
 	activeQuizRun.Answers[participant.TelegramID] = make([]Answer, 0, len(quiz.Questions))
 	participant.JoinedAt = time.Now()
-	
+
 	return nil
 }
 
@@ -120,7 +120,7 @@ func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Partici
 func (e *Engine) GetParticipantCount(runID string) int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	activeQuizRun := e.activeQuizzesRun[runID]
 
 	return len(activeQuizRun.Participants)
@@ -128,7 +128,7 @@ func (e *Engine) GetParticipantCount(runID string) int {
 
 // StartQuiz запускает квиз.
 // Возвращает канал событий квиза.
-func (e *Engine) StartQuiz(ctx  context.Context, runID string) (<-chan QuizEvent, error) {
+func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent, error) {
 	e.mu.Lock()
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
@@ -195,7 +195,7 @@ func (e *Engine) StartQuiz(ctx  context.Context, runID string) (<-chan QuizEvent
 		e.mu.Unlock()
 
 		quizEvents <- QuizEvent{
-			Type:    EventTypeFinished,
+			Type: EventTypeFinished,
 		}
 	}()
 
@@ -206,7 +206,7 @@ func (e *Engine) StartQuiz(ctx  context.Context, runID string) (<-chan QuizEvent
 func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error {
 	if event.Type != EventTypeQuestion {
 		return errors.New("event type must be a question type")
-	} 
+	}
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -325,7 +325,7 @@ func (e *Engine) SubmitAnswerByLetter(
 func (e *Engine) GetCurrentQuestion(runID string) int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusRunning {
 		return -1
@@ -377,7 +377,7 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 			Score:        participantScore,
 			CorrectCount: correctCount,
 			TotalTime:    timeResult,
-			Rank: 0,
+			Rank:         0,
 		})
 	}
 

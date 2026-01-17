@@ -4,37 +4,40 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/letsssgooo/quizBot/internal/bot"
-	"github.com/letsssgooo/quizBot/internal/client"
-	"github.com/letsssgooo/quizBot/internal/events/engine"
-	"github.com/spf13/pflag"
+	"github.com/letsssgooo/quizBot/internal/lib/slogcustom"
 )
 
 func main() {
-	log := setupLogger()
-	slog.SetDefault(log)
+	logger := setupLogger()
+	slog.SetDefault(logger)
+
+	slog.Debug("debug mode")
+
 	slog.Info("starting events bot...")
 
-	flagToken := pflag.String("token", "", "token of client bot")
-	flagBotUsername := pflag.String("bot-username", "", "username of the client bot")
-	pflag.Parse()
+	slog.Warn("warn mode", "error", "some error")
 
-	client := client.NewHTTPClient(*flagToken)
-	engine := engine.NewEngine()
+	slog.Error("error mode", "error", "some error")
 
-	bot := bot.NewBot(client, engine, *flagBotUsername)
-
-	err := bot.Run()
-	if err != nil {
-		return
-	}
+	//flagToken := pflag.String("token", "", "token of client bot")
+	//flagBotUsername := pflag.String("bot-username", "", "username of the client bot")
+	//pflag.Parse()
+	//
+	//client := client.NewHTTPClient(*flagToken)
+	//engine := engine.NewEngine()
+	//
+	//bot := bot.NewBot(client, engine, *flagBotUsername)
+	//
+	//err := bot.Run()
+	//if err != nil {
+	//	return
+	//}
 
 	// Storage
 }
 
 func setupLogger() *slog.Logger {
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-	return log
+	logHandler := slogcustom.NewCustomHandler(os.Stdout, slog.LevelDebug)
+
+	return slog.New(logHandler)
 }
