@@ -7,8 +7,8 @@ type TelegramSender struct {
 	client client.Client
 }
 
-// NewSender создает новый объект структуры TelegramSender.
-func NewSender(client client.Client) *TelegramSender {
+// NewTelegramSender создает новый объект структуры TelegramSender.
+func NewTelegramSender(client client.Client) *TelegramSender {
 	return &TelegramSender{client: client}
 }
 
