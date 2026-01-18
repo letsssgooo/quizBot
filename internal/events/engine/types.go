@@ -150,7 +150,6 @@ type QuizEvent struct { //nolint:revive
 	QuestionIdx int
 	Question    *Question
 	TimeLeft    time.Duration
-	Results     *QuizResults
 }
 
 // EventType — тип события квиза.
