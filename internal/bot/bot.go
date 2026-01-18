@@ -26,10 +26,23 @@ func NewBot(client client.Client, engine engine.QuizEngine, botUsername string) 
 
 // Run запускает бота (long polling).
 func (b *Bot) Run() error {
-	panic("not implemented")
+	for { // long polling
+		panic("not implemented")
+		// TODO: fetcher получает новые апдейты, учитывая offset, limit, timeout, и отдает их
+
+		// TODO: HandleUpdate проверяет права (пр: студент не может изменять квиз) и определяет
+		// TODO: тип апдейта и что с ним должен сделать engine
+
+		// TODO: новые апдейты попадают в engine, он проверяет их на корректность, обрабатывает
+		// TODO: и отдает готовый результат в sender
+
+		// TODO: sender опредяеляет, кому надо отдать обработанные апдейты, и отдает
+	}
 }
 
 // HandleUpdate обрабатывает одно обновление.
 func (b *Bot) HandleUpdate(update client.Update) error {
 	panic("not implemented")
+
+	// TODO: проверить права доступа и определить дальнейший маршрут для update
 }

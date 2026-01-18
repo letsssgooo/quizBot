@@ -24,7 +24,7 @@ type Engine struct {
 	runIDToQuestionNumber map[string]int
 	startTimeOfQuestion   map[int]time.Time
 	quizErrChan           map[string]chan struct{} // для выхода из горутины при ошибке
-	mu                    sync.Mutex
+	mu                    sync.RWMutex
 }
 
 // NewEngine создаёт новый QuizEngine.
@@ -118,10 +118,13 @@ func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Partici
 
 // GetParticipantCount возвращает текущее количество участников.
 func (e *Engine) GetParticipantCount(runID string) int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
-	activeQuizRun := e.activeQuizzesRun[runID]
+	activeQuizRun, ok := e.activeQuizzesRun[runID]
+	if !ok {
+		return -1
+	}
 
 	return len(activeQuizRun.Participants)
 }
@@ -134,7 +137,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
 		e.mu.Unlock()
-		return nil, fmt.Errorf("events %s is not found", runID)
+		return nil, fmt.Errorf("quiz with runID: %s is not found", runID)
 	}
 
 	if activeQuizRun.Status != RunStatusLobby {
@@ -180,7 +183,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 				}
 				quizEvents <- questionEvent
 
-				ok := e.waitEndOfQuestion(ctx, activeQuizRun, i, timePerQuestion, quiz, quizEvents, e.quizErrChan[runID])
+				ok = e.waitEndOfQuestion(ctx, activeQuizRun, i, timePerQuestion, quiz, quizEvents, e.quizErrChan[runID])
 				if !ok {
 					return
 				}
@@ -257,14 +260,14 @@ func (e *Engine) SubmitAnswer(
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok || activeQuizRun.Status != RunStatusRunning {
 		close(quizErrChan)
-		return fmt.Errorf("events %s not running", runID)
+		return fmt.Errorf("quiz with runID: %s not running", runID)
 	}
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
 	questionsLength := len(quiz.Questions)
 	if questionIdx < 0 || questionIdx >= questionsLength {
 		close(quizErrChan)
-		return errors.New("invalid index of answer")
+		return errors.New("invalid index of question")
 	}
 
 	optionsLength := len(quiz.Questions[questionIdx].Options)
@@ -444,12 +447,12 @@ func (e *Engine) ExportCSV(runID string) ([]byte, error) {
 
 // GetRun возвращает запуск по ID.
 func (e *Engine) GetRun(runID string) (*QuizRun, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return nil, fmt.Errorf("events %s is not found", runID)
+		return nil, fmt.Errorf("quiz with runID: %s is not found", runID)
 	}
 
 	return activeQuizRun, nil
