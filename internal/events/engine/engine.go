@@ -27,7 +27,7 @@ type Engine struct {
 	mu                    sync.RWMutex
 }
 
-// NewEngine создаёт новый QuizEngine.
+// NewEngine создаёт новый Engine.
 func NewEngine() *Engine {
 	return &Engine{
 		quizzes:               make(map[string]*Quiz),
