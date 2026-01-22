@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/letsssgooo/quizBot/internal/domain/models"
 	"github.com/letsssgooo/quizBot/internal/storage"
 )
 
@@ -26,7 +28,11 @@ func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, username, 
 		return err
 	}
 
-	err = st.SaveFullName(ctx, username, fullName)
+	err = st.SaveFullName(ctx, &models.UserModel{
+		Username:  username,
+		FullName:  fullName,
+		CreatedAt: time.Now(),
+	})
 	if err != nil {
 		return err
 	}
@@ -44,7 +50,10 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, username, mes
 		return errors.New("invalid role")
 	}
 
-	err = st.AddRole(ctx, username, role)
+	err = st.AddRole(ctx, &models.UserModel{
+		Username: username,
+		Role:     role,
+	})
 	if err != nil {
 		return err
 	}
@@ -58,7 +67,10 @@ func (q *BotAuth) AddGroup(ctx context.Context, st storage.Storage, username, me
 		return err
 	}
 
-	err = st.AddGroup(ctx, username, group)
+	err = st.AddGroup(ctx, &models.UserModel{
+		Username: username,
+		Group:    group,
+	})
 	if err != nil {
 		return err
 	}
@@ -67,7 +79,10 @@ func (q *BotAuth) AddGroup(ctx context.Context, st storage.Storage, username, me
 }
 
 func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, username, role string) (bool, error) {
-	hasRole, err := st.CheckRole(ctx, username, role)
+	hasRole, err := st.CheckRole(ctx, &models.UserModel{
+		Username: username,
+		Role:     role,
+	})
 	if err != nil {
 		return false, err
 	}
