@@ -20,20 +20,20 @@ const updatesTimeout = 30
 
 // Bot реализует Telegram бота для квизов.
 type Bot struct {
-	client      client.Client
-	fetcher     fetcher.Fetcher
-	sender      sender.Sender
-	engine      engine.QuizEngine
-	botUsername string // Username бота для формирования ссылок (например, "my_quiz_bot")
-	userIDToRunID map[int64]string
-	IsLecturersID map[int64]bool
+	client              client.Client
+	fetcher             fetcher.Fetcher
+	sender              sender.Sender
+	engine              engine.QuizEngine
+	botUsername         string // Username бота для формирования ссылок (например, "my_quiz_bot")
+	userIDToRunID       map[int64]string
+	IsLecturersID       map[int64]bool
 	runIDToLobbyEndChan map[string]chan struct{}
-	runIDToQuiz map[string]*engine.Quiz
-	userIDToChatID map[int64]int64
-	runIDToOwnerChatID map[string]int64
-	userIDToAnswersCnt map[int64]int
-	hasLecturer bool
-	mu sync.Mutex
+	runIDToQuiz         map[string]*engine.Quiz
+	userIDToChatID      map[int64]int64
+	runIDToOwnerChatID  map[string]int64
+	userIDToAnswersCnt  map[int64]int
+	hasLecturer         bool
+	mu                  sync.Mutex
 }
 
 // NewBot создаёт нового бота.
@@ -47,18 +47,18 @@ func NewBot(
 	botUsername string,
 ) *Bot {
 	return &Bot{
-		client:      client,
-		fetcher:     fetcher,
-		sender:      sender,
-		engine:      quizEngine,
-		botUsername: botUsername,
-		userIDToRunID: make(map[int64]string),
-		IsLecturersID: make(map[int64]bool),
+		client:              client,
+		fetcher:             fetcher,
+		sender:              sender,
+		engine:              quizEngine,
+		botUsername:         botUsername,
+		userIDToRunID:       make(map[int64]string),
+		IsLecturersID:       make(map[int64]bool),
 		runIDToLobbyEndChan: make(map[string]chan struct{}),
-		runIDToQuiz: make(map[string]*engine.Quiz),
-		userIDToChatID: make(map[int64]int64),
-		runIDToOwnerChatID: make(map[string]int64),
-		userIDToAnswersCnt: make(map[int64]int),
+		runIDToQuiz:         make(map[string]*engine.Quiz),
+		userIDToChatID:      make(map[int64]int64),
+		runIDToOwnerChatID:  make(map[string]int64),
+		userIDToAnswersCnt:  make(map[int64]int),
 	}
 }
 
@@ -83,21 +83,17 @@ func (b *Bot) Run() error {
 
 // HandleUpdate обрабатывает одно обновление.
 func (b *Bot) HandleUpdate(update client.Update) error {
-
 	// TODO: HandleUpdate проверяет права (пр: студент не может изменять квиз) и определяет
 	// TODO: тип апдейта и что с ним должен сделать engine
-
 	if update.Message != nil {
 		return b.handleMessageUpdate(update.Message)
 	} else if update.CallbackQuery != nil {
 		return b.handleCallbackUpdate(update.CallbackQuery)
 	}
 
-	return errors.New("Undefined update type")
-
+	return errors.New("undefined update type")
 	// TODO: новые апдейты попадают в engine, он проверяет их на корректность, обрабатывает
 	// TODO: и отдает готовый результат в sender
-
 	// TODO: sender опредяеляет, кому надо отдать обработанные апдейты, и отдает
 }
 
@@ -144,10 +140,9 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 	} else if len(text) == 4 {
 		if _, err := strconv.Atoi(text[3]); err == nil {
 			// TODO: запись данных студента в БД.
-			// по-похорошему тут стоит получше проверять, 
+			// по-похорошему тут стоит получше проверять,
 			// что это именно данные студента в виде ФИО номер_группы
 			// можно проверку, что первые три слова начинаются с заглавной буквы, но детали, скорее, позже
-
 			_, err := b.sender.Message(message.Chat.ID, msgStudentsVerification, nil)
 
 			return err
@@ -163,7 +158,7 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
 	if len(text) == 1 {
 		keyboard := client.InlineKeyboardMarkup{
-		InlineKeyboard: [][]client.InlineKeyboardButton{
+			InlineKeyboard: [][]client.InlineKeyboardButton{
 				{
 					{Text: "Студент", CallbackData: "Student"},
 				},
@@ -178,9 +173,10 @@ func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
 
 		return err
 	}
-	
+
 	// студент присоединен к квизу по ссылке
 	runID := strings.Split(text[1], "_")[1]
+
 	return b.handleStudentsJoin(message, runID)
 }
 
@@ -357,6 +353,7 @@ func (b *Bot) handleEditLecturerMessage(runID string, botMessage *client.Message
 			if cnt == prevCnt {
 				continue
 			}
+
 			prevCnt = cnt
 
 			text := fmt.Sprintf(`Квиз создан.
@@ -379,14 +376,14 @@ func (b *Bot) handleCallbackUpdate(callback *client.CallbackQuery) error {
 }
 
 // handleIdentificationCallbackUpdate определяет роль пользователя.
-func(b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery) error {
+func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery) error {
 	switch callback.Data {
 	case "Student":
 		b.mu.Lock()
 
-		b.IsLecturersID[callback.From.ID] = false // пишу это явно, чтобы понимать, 
-												  // что этот пользователь именно студент, 
-												  // а не тот, кто еще не выбрал роль
+		b.IsLecturersID[callback.From.ID] = false // пишу это явно, чтобы понимать,
+		// что этот пользователь именно студент,
+		// а не тот, кто еще не выбрал роль
 
 		b.mu.Unlock()
 
@@ -411,7 +408,7 @@ func(b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery) 
 }
 
 // handleQuizStartCallbackUpdate запускает квиз.
-func(b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) error {
+func (b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) error {
 	err := b.client.AnswerCallback(callback.ID, msgQuizRunning)
 	if err != nil {
 		return err
@@ -452,7 +449,7 @@ func(b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) error
 }
 
 // handleQuestionEvent отправляет каждому студенту вопрос со счетчиком времени.
-func(b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
+func (b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
 	var builder strings.Builder
 
 	text := fmt.Sprintf("Вопрос %d", event.QuestionIdx+1) + "\n\n"
@@ -507,7 +504,7 @@ func(b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
 }
 
 // handleEditUserMessage изменяет счетчик времени в сообщении бота.
-func(b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*client.Message, event engine.QuizEvent) error {
+func (b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*client.Message, event engine.QuizEvent) error {
 	ticker := time.NewTicker(time.Second)
 
 	b.mu.Lock()
@@ -564,7 +561,7 @@ func(b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*c
 }
 
 // handleFinishedEvent отправляет студентам и преподавателю результаты квиза.
-func(b *Bot) handleFinishedEvent(runID string) error {
+func (b *Bot) handleFinishedEvent(runID string) error {
 	res, err := b.engine.GetResults(runID)
 	if err != nil {
 		return err
@@ -624,6 +621,6 @@ func(b *Bot) handleFinishedEvent(runID string) error {
 	}
 
 	fileName := fmt.Sprintf(`Результаты квиза "%s"`, res.QuizTitle)
+
 	return b.sender.Document(ownerChatID, fileName, csvData)
 }
- 

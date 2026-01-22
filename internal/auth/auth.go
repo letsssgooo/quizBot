@@ -25,10 +25,12 @@ func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, username, 
 	if err != nil {
 		return err
 	}
+
 	err = st.SaveFullName(ctx, username, fullName)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -37,13 +39,16 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, username, mes
 	if err != nil {
 		return err
 	}
+
 	if _, ok := q.Roles[role]; !ok {
 		return errors.New("invalid role")
 	}
+
 	err = st.AddRole(ctx, username, role)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -52,10 +57,12 @@ func (q *BotAuth) AddGroup(ctx context.Context, st storage.Storage, username, me
 	if err != nil {
 		return err
 	}
+
 	err = st.AddGroup(ctx, username, group)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -64,5 +71,6 @@ func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, username, r
 	if err != nil {
 		return false, err
 	}
+
 	return hasRole, nil
 }

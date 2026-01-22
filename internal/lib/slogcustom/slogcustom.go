@@ -37,6 +37,7 @@ func (c *CustomHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	attrsStr := ""
+
 	r.Attrs(func(a slog.Attr) bool {
 		attrsStr += color.GreenString(a.Key) + "=" + fmt.Sprint(a.Value.Any()) + " "
 		return true
@@ -48,12 +49,12 @@ func (c *CustomHandler) Handle(_ context.Context, r slog.Record) error {
 		r.Message,
 		attrsStr,
 	)
+
 	return nil
 }
 
 func (c *CustomHandler) WithAttrs(_ []slog.Attr) slog.Handler {
 	return c
-
 }
 
 func (c *CustomHandler) WithGroup(_ string) slog.Handler {

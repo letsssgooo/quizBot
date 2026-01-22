@@ -442,18 +442,21 @@ func TestLeaderboard_Sorting(t *testing.T) {
 
 	// Q1
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 1) // неправильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 2, 0, 0) // правильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 3, 0, 0) // правильно
 
 	// Q2
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 1, 1) // неправильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 2, 1, 0) // правильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 3, 1, 1) // неправильно
 
 	// Q3
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 2, 1) // неправильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 2, 2, 0) // правильно
 	_ = engine.SubmitAnswer(ctx, run.ID, 3, 2, 1) // неправильно
@@ -517,6 +520,7 @@ func TestLeaderboard_SameScore_SortByTime(t *testing.T) {
 
 	// fast отвечает первым
 	_ = engine.SubmitAnswer(ctx, run.ID, 2, 0, 0)
+
 	time.Sleep(10 * time.Millisecond)
 	// slow отвечает вторым
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
@@ -567,7 +571,9 @@ func TestExportCSV_Format(t *testing.T) {
 	defer drainEvents(events)
 
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+
 	<-events
 
 	csvData, err := engine.ExportCSV(run.ID)
@@ -624,7 +630,9 @@ func TestExportCSV_UTF8(t *testing.T) {
 	defer drainEvents(events)
 
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+
 	<-events
 
 	csvData, err := engine.ExportCSV(run.ID)
@@ -774,7 +782,9 @@ func TestStartQuiz_NotInLobby(t *testing.T) {
 
 	// Завершаем квиз
 	<-events
+
 	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+
 	<-events
 }
 
@@ -863,11 +873,13 @@ func TestQuizWithTextAnswers_FullFlow(t *testing.T) {
 
 	// Q1
 	<-events
+
 	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 1, "B") // правильно
 	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 2, "A") // неправильно
 
 	// Q2
 	<-events
+
 	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 1, "A") // правильно
 	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 2, "A") // правильно
 

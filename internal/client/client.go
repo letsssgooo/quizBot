@@ -53,6 +53,7 @@ func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (
 	if err = json.Unmarshal(rawResp, &message); err != nil {
 		return nil, err
 	}
+
 	return &message, nil
 }
 
@@ -79,6 +80,7 @@ func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -89,10 +91,12 @@ func (c *HTTPClient) DeleteMessage(chatID int64, messageID int) error {
 		"chat_id":    chatID,
 		"message_id": messageID,
 	}
+
 	_, err := c.doRequest("deleteMessage", params)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -104,10 +108,12 @@ func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 		"callback_query_id": callbackID,
 		"text":              text,
 	}
+
 	_, err := c.doRequest("answerCallbackQuery", params)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -120,14 +126,17 @@ func (c *HTTPClient) GetUpdates(offset int, timeout int) ([]Update, error) {
 		"offset":  offset,
 		"timeout": timeout,
 	}
+
 	rawResp, err := c.doRequest("getUpdates", params)
 	if err != nil {
 		return nil, err
 	}
+
 	var updates []Update
 	if err = json.Unmarshal(rawResp, &updates); err != nil {
 		return nil, err
 	}
+
 	return updates, nil
 }
 
@@ -137,6 +146,7 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 	params := map[string]interface{}{
 		"file_id": fileID,
 	}
+
 	rawResp, err := c.doRequest("getFile", params)
 	if err != nil {
 		return "", err
@@ -152,6 +162,7 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 	if err = json.Unmarshal(rawResp, &file); err != nil {
 		return "", err
 	}
+
 	return file.FilePath, nil
 }
 
@@ -159,6 +170,7 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 // Возращает содержимое файла в случае успеха.
 func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	linkForDownload := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", c.token, filePath)
+
 	resp, err := c.httpClient.Get(linkForDownload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download the request from the link %s: %w", linkForDownload, err)
@@ -176,6 +188,7 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body in DownloadFile: %w", err)
 	}
+
 	return data, nil
 }
 
@@ -183,10 +196,13 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 // Возвращает nil в случае успеха.
 func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) error {
 	var buf bytes.Buffer
+
 	writer := multipart.NewWriter(&buf)
+
 	defer func() {
 		_ = writer.Close()
 	}()
+
 	err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10))
 	if err != nil {
 		return fmt.Errorf("failed to add chat_id field to multipart form: %w", err)
@@ -207,6 +223,7 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 	if err != nil {
 		return fmt.Errorf("failed to do post request for url %s: %w", url, err)
 	}
+
 	defer func() {
 		_ = resp.Body.Close()
 	}()
@@ -223,9 +240,11 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 	if err = json.Unmarshal(respData, &result); err != nil {
 		return err
 	}
+
 	if !result.OK {
 		return fmt.Errorf("client api error: %s", result.Error)
 	}
+
 	return nil
 }
 
@@ -243,6 +262,7 @@ func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (js
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		_ = resp.Body.Close()
 	}()

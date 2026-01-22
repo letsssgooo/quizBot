@@ -1,3 +1,5 @@
 package postgres
 
-type
+//type storage struct {
+//	db *pgxpool.Pool
+//}

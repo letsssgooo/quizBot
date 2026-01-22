@@ -78,6 +78,7 @@ func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 		Answers:      make(map[int64][]Answer),
 		StartedAt:    time.Now(),
 	}
+
 	e.mu.Lock()
 	e.activeQuizzesRun[runID] = activeQuizRun
 	e.mu.Unlock()
@@ -144,6 +145,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 		e.mu.Unlock()
 		return nil, errors.New(`can not start events, it is not in status "lobby"`)
 	}
+
 	activeQuizRun.Status = RunStatusRunning
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
@@ -264,6 +266,7 @@ func (e *Engine) SubmitAnswer(
 	}
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
+
 	questionsLength := len(quiz.Questions)
 	if questionIdx < 0 || questionIdx >= questionsLength {
 		close(quizErrChan)

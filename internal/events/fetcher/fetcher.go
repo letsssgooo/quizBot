@@ -21,8 +21,10 @@ func (f *TelegramFetcher) GetUpdates(timeout int) ([]client.Update, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if len(updates) != 0 {
 		f.offset = updates[len(updates)-1].UpdateID + 1
 	}
+
 	return updates, nil
 }
