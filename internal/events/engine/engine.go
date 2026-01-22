@@ -473,16 +473,12 @@ func (e *Engine) waitEndOfQuestion(
 	for {
 		select {
 		case <-timer.C:
-			e.mu.Lock()
-
 			event := QuizEvent{
 				Type:        EventTypeTimeUp,
 				QuestionIdx: questionIndex,
 				Question:    &quiz.Questions[questionIndex],
 			}
 			events <- event
-
-			e.mu.Unlock()
 
 			return true
 		case <-timeToCheckForAllAnswers.C:
