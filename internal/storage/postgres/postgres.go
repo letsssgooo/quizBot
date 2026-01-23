@@ -12,7 +12,11 @@ type Storage struct {
 }
 
 func NewStorage(ctx context.Context, dsn string) (*Storage, error) {
-	pool, err := pgxpool.Connect(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.ConnectConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -31,16 +35,32 @@ func (s *Storage) SaveFullName(ctx context.Context, user *models.UserModel) erro
 }
 
 func (s *Storage) AddRole(ctx context.Context, user *models.UserModel) error {
-	// add role
-	return nil
+	query := `
+	UPDATE users SET role = $1 WHERE username = $2
+	`
+
+	_, err := s.pool.Exec(ctx, query, user.Role, user.Username)
+	return err
 }
 
 func (s *Storage) CheckRole(ctx context.Context, user *models.UserModel) (bool, error) {
-	// check role
-	return false, nil
+	query := `
+		SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND role = $2)
+	`
+
+	var hasRole bool
+	err := s.pool.QueryRow(ctx, query, user.Username, user.Role).Scan(&hasRole)
+	if err != nil {
+		return false, err
+	}
+	return hasRole, nil
 }
 
 func (s *Storage) AddGroup(ctx context.Context, user *models.UserModel) error {
-	// add group
-	return nil
+	query := `
+	UPDATE users SET student_group = $1 WHERE username = $2
+	`
+
+	_, err := s.pool.Exec(ctx, query, user.Group, user.Username)
+	return err
 }
