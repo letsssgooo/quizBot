@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"time"
+	"errors"
 )
 
 // Quiz представляет загруженный квиз.
@@ -163,6 +164,20 @@ const (
 
 // MaxCountOfEvents - лимит событий в квизе.
 const MaxCountOfEvents int64 = 1000
+
+// Ошибки при работе с квизом.
+var (
+	ErrNilQuiz = errors.New("quiz object is nil")
+	ErrNilParticipant = errors.New("participant object is nil")
+	ErrNoRunLobby = errors.New("lobby of current events does not launched")
+	ErrLobbyFull = errors.New("lobby has reached maximum capacity")
+	ErrRepeatedJoin = errors.New("participant already joined")
+	ErrNoRunningStatus = errors.New(`cannot start events, it is not in status "lobby"`)
+	ErrNoQuestionType = errors.New("event type must be a question type")
+	ErrInvalidQuestionIndex = errors.New("invalid index of question")
+	ErrInvalidAnswerIndex = errors.New("invalid index of answer")
+	ErrConvertLetterToIndex = errors.New("cannot convert letter to index, invalid input")
+)
 
 // AnswerLetters — допустимые буквы для ответов (A-F для до 6 вариантов).
 var AnswerLetters = []string{"A", "B", "C", "D", "E", "F"}

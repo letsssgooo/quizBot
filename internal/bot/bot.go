@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/letsssgooo/quizBot/internal/client"
 	"github.com/letsssgooo/quizBot/internal/events/engine"
@@ -138,15 +139,17 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 			return err
 		}
 	} else if len(text) == 4 {
-		if _, err := strconv.Atoi(text[3]); err == nil {
+		if IsCorrectStudentsData(text) {
 			// TODO: запись данных студента в БД.
-			// по-похорошему тут стоит получше проверять,
-			// что это именно данные студента в виде ФИО номер_группы
-			// можно проверку, что первые три слова начинаются с заглавной буквы, но детали, скорее, позже
-			_, err := b.sender.Message(message.Chat.ID, msgStudentsVerification, nil)
+
+			_, err := b.sender.Message(message.Chat.ID, msgStudentsSuccessfullVerification, nil)
 
 			return err
 		}
+
+		_, err := b.sender.Message(message.Chat.ID, msgStudentsDataMistake, nil)
+
+		return err
 	}
 
 	_, err := b.sender.Message(message.Chat.ID, msgUnknownText, nil)
@@ -205,11 +208,14 @@ func (b *Bot) handleStudentsJoin(message *client.Message, runID string) error {
 		Username:   message.From.Username,
 		FirstName:  message.From.FirstName,
 		LastName:   message.From.LastName,
-		JoinedAt:   time.Now(),
 	}
 
 	err = b.engine.JoinRun(ctx, runID, participant)
-	if err != nil {
+	if errors.Is(err, engine.ErrLobbyFull) {
+		_, err = b.client.SendMessage(message.Chat.ID, msgMaxParticipantNumber, nil)
+
+		return err
+	} else if err != nil {
 		return err
 	}
 
@@ -399,7 +405,7 @@ func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery)
 
 		b.mu.Unlock()
 
-		_, err := b.sender.Message(callback.Message.Chat.ID, msgVerificationAndFile, nil)
+		_, err := b.sender.Message(callback.Message.Chat.ID, msgLecturersSuccessfullVerification, nil)
 
 		return err
 	default:
@@ -623,4 +629,30 @@ func (b *Bot) handleFinishedEvent(runID string) error {
 	fileName := fmt.Sprintf(`Результаты квиза "%s"`, res.QuizTitle)
 
 	return b.sender.Document(ownerChatID, fileName, csvData)
+}
+
+func IsCorrectStudentsData(data []string) bool {
+	fullName := data[:len(data) - 1]
+
+	for _, word := range fullName {
+		if len(word) < 2 {
+			return false
+		}
+
+		if !unicode.IsUpper([]rune(word)[0]) {
+			return false
+		}
+
+		for _, letter := range word[1:] {
+			if !unicode.IsLower(letter) && letter != '-' {
+				return false
+			}
+		}
+	}
+
+	if _, err := strconv.Atoi(data[3]); err != nil {
+		return false
+	}
+
+	return true
 }

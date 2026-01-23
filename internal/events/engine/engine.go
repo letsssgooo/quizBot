@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -66,7 +65,7 @@ func (e *Engine) LoadQuiz(data []byte) (*Quiz, error) {
 // Возвращает указатель на запуск квиза.
 func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 	if quiz == nil {
-		return nil, errors.New("quiz object is nil")
+		return nil, ErrNilQuiz
 	}
 
 	runID := uuid.NewString()
@@ -92,22 +91,22 @@ func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Partici
 	defer e.mu.Unlock()
 
 	if participant == nil {
-		return errors.New("participant object is nil")
+		return ErrNilParticipant
 	}
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return errors.New("lobby of current events does not launched")
+		return ErrNoRunLobby
 	}
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
 	if quiz.Settings.MaxParticipants != 0 &&
 		len(activeQuizRun.Participants) >= quiz.Settings.MaxParticipants {
-		return errors.New("lobby has reached maximum capacity")
+		return ErrLobbyFull
 	}
 
 	if _, ok = activeQuizRun.Participants[participant.TelegramID]; ok {
-		return errors.New("participant already joined")
+		return ErrRepeatedJoin
 	}
 
 	activeQuizRun.Participants[participant.TelegramID] = participant
@@ -143,7 +142,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 
 	if activeQuizRun.Status != RunStatusLobby {
 		e.mu.Unlock()
-		return nil, errors.New(`can not start events, it is not in status "lobby"`)
+		return nil, ErrNoRunningStatus
 	}
 
 	activeQuizRun.Status = RunStatusRunning
@@ -210,7 +209,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 // ShuffleAnswers перемешивает порядок ответов на вопрос.
 func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error {
 	if event.Type != EventTypeQuestion {
-		return errors.New("event type must be a question type")
+		return ErrNoQuestionType
 	}
 
 	e.mu.Lock()
@@ -218,7 +217,7 @@ func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEve
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
 	if !ok {
-		return errors.New("lobby of current events does not launched")
+		return ErrNoRunLobby
 	}
 
 	quiz := e.quizzes[activeQuizRun.QuizID]
@@ -270,13 +269,13 @@ func (e *Engine) SubmitAnswer(
 	questionsLength := len(quiz.Questions)
 	if questionIdx < 0 || questionIdx >= questionsLength {
 		close(quizErrChan)
-		return errors.New("invalid index of question")
+		return ErrInvalidQuestionIndex
 	}
 
 	optionsLength := len(quiz.Questions[questionIdx].Options)
 	if answerIdx < 0 || answerIdx >= optionsLength {
 		close(quizErrChan)
-		return errors.New("invalid index of answer")
+		return ErrInvalidAnswerIndex
 	}
 
 	if _, ok = activeQuizRun.Participants[participantID]; !ok {
@@ -321,7 +320,7 @@ func (e *Engine) SubmitAnswerByLetter(
 	answerIndex, ok := LetterToIndex(letter)
 	if !ok {
 		close(quizErrChan)
-		return errors.New("can not convert letter to index, invalid input")
+		return ErrConvertLetterToIndex
 	}
 
 	return e.SubmitAnswer(ctx, runID, participantID, e.GetCurrentQuestion(runID), answerIndex)
