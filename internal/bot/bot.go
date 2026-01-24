@@ -107,12 +107,12 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 	b.mu.Unlock()
 
 	if ok {
-		return b.hadleAnswerUpdate(message.Chat.ID, message.From.ID, message.Text, runID)
+		return b.handleAnswerUpdate(message.Chat.ID, message.From.ID, message.Text, runID)
 	}
 
 	if b.IsLecturersID[ID] && message.Document != nil {
 		return b.handleDocumentUpdate(message)
-	} else if !b.IsLecturersID[ID] && message.Document != nil {
+	} else if !b.IsLecturersID[ID] && message.Document != nil { // TODO: SELECT запрос в БД на проверку прав, вместо мапы
 		_, err := b.sender.Message(message.Chat.ID, msgNoRights, nil)
 
 		return err
@@ -141,7 +141,6 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 	} else if len(text) == 4 {
 		if IsCorrectStudentsData(text) {
 			// TODO: запись данных студента в БД.
-
 			_, err := b.sender.Message(message.Chat.ID, msgStudentsSuccessfullVerification, nil)
 
 			return err
@@ -249,8 +248,8 @@ func (b *Bot) handleHelpCommand(message *client.Message) error {
 	return err
 }
 
-// hadleAnswerUpdate обрабатывает ответ студента на вопрос.
-func (b *Bot) hadleAnswerUpdate(chatID, fromID int64, text string, runID string) error {
+// handleAnswerUpdate обрабатывает ответ студента на вопрос.
+func (b *Bot) handleAnswerUpdate(chatID, fromID int64, text string, runID string) error {
 	ctx := context.Background()
 
 	b.mu.Lock()
@@ -470,16 +469,16 @@ func (b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
 
 	b.mu.Lock()
 
-	var time int
+	var questionTime int
 	if event.Question.Time > 0 {
-		time = event.Question.Time
+		questionTime = event.Question.Time
 	} else {
-		time = b.runIDToQuiz[runID].Settings.TimePerQuestion
+		questionTime = b.runIDToQuiz[runID].Settings.TimePerQuestion
 	}
 
 	b.mu.Unlock()
 
-	text = "\n" + fmt.Sprintf("Время: %d секунд", time) + "\n\n"
+	text = "\n" + fmt.Sprintf("Время: %d секунд", questionTime) + "\n\n"
 	builder.WriteString(text)
 	builder.WriteString("Отправьте букву ответа (A, B, C, ...)")
 	msg := builder.String()
@@ -515,20 +514,20 @@ func (b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*
 
 	b.mu.Lock()
 
-	var time int
+	var questionTime int
 	if event.Question.Time > 0 {
-		time = event.Question.Time
+		questionTime = event.Question.Time
 	} else {
-		time = b.runIDToQuiz[runID].Settings.TimePerQuestion
+		questionTime = b.runIDToQuiz[runID].Settings.TimePerQuestion
 	}
 
 	b.mu.Unlock()
 
-	lim := time
+	lim := questionTime
 	for range lim {
 		<-ticker.C
 
-		time--
+		questionTime--
 
 		var str strings.Builder
 
@@ -542,7 +541,7 @@ func (b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*
 			str.WriteString(text)
 		}
 
-		text = "\n" + fmt.Sprintf("Время: %d секунд", time) + "\n\n"
+		text = "\n" + fmt.Sprintf("Время: %d секунд", questionTime) + "\n\n"
 		str.WriteString(text)
 		str.WriteString("Отправьте букву ответа (A, B, C, ...)")
 		msg := str.String()
@@ -632,7 +631,7 @@ func (b *Bot) handleFinishedEvent(runID string) error {
 }
 
 func IsCorrectStudentsData(data []string) bool {
-	fullName := data[:len(data) - 1]
+	fullName := data[:len(data)-1]
 
 	for _, word := range fullName {
 		if len(word) < 2 {

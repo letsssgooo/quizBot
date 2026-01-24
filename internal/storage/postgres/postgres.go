@@ -16,6 +16,7 @@ func NewStorage(ctx context.Context, dsn string) (*Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	pool, err := pgxpool.ConnectConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -40,6 +41,7 @@ func (s *Storage) AddRole(ctx context.Context, user *models.UserModel) error {
 	`
 
 	_, err := s.pool.Exec(ctx, query, user.Role, user.Username)
+
 	return err
 }
 
@@ -49,10 +51,12 @@ func (s *Storage) CheckRole(ctx context.Context, user *models.UserModel) (bool, 
 	`
 
 	var hasRole bool
+
 	err := s.pool.QueryRow(ctx, query, user.Username, user.Role).Scan(&hasRole)
 	if err != nil {
 		return false, err
 	}
+
 	return hasRole, nil
 }
 
@@ -62,5 +66,6 @@ func (s *Storage) AddGroup(ctx context.Context, user *models.UserModel) error {
 	`
 
 	_, err := s.pool.Exec(ctx, query, user.Group, user.Username)
+
 	return err
 }

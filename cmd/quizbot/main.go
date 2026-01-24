@@ -41,6 +41,8 @@ func main() {
 
 	slog.Error("error mode", "error", "some error")
 
+	// ctx := context.Background() // для graceful shutdown
+
 	// token, botUsername, err := getTokenAndBotName()
 	// if err != nil {
 	// 	log.Fatal(err)
