@@ -1,9 +1,9 @@
 -- Создание таблицы пользователей
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    username VARCHAR(32) NOT NULL,
+    telegram_id BIGINT NOT NULL UNIQUE,
     full_name VARCHAR(150),
-    role VARCHAR(20) NOT NULL,
+    role VARCHAR(20),
     user_group VARCHAR,
     created_at TIMESTAMP NOT NULL
 );

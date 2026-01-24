@@ -10,12 +10,12 @@ import (
 
 // UserModel определяет модель для таблицы пользователей
 type UserModel struct {
-	ID        int
-	Username  string
-	FullName  string
-	Role      string
-	Group     string
-	CreatedAt time.Time
+	ID         int
+	TelegramID int64
+	FullName   string
+	Role       string
+	Group      string
+	CreatedAt  time.Time
 }
 
 // InfoModel определяет модель для таблицы с информацией о квизах

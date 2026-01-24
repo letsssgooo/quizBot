@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"strconv"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
+	"github.com/letsssgooo/quizBot/internal/auth"
 	"github.com/letsssgooo/quizBot/internal/client"
 	"github.com/letsssgooo/quizBot/internal/events/engine"
 	"github.com/letsssgooo/quizBot/internal/events/fetcher"
 	"github.com/letsssgooo/quizBot/internal/events/sender"
+	"github.com/letsssgooo/quizBot/internal/storage"
 )
 
 const updatesTimeout = 30
@@ -22,9 +22,11 @@ const updatesTimeout = 30
 // Bot реализует Telegram бота для квизов.
 type Bot struct {
 	client              client.Client
+	auth                auth.Auth
 	fetcher             fetcher.Fetcher
 	sender              sender.Sender
 	engine              engine.QuizEngine
+	storage             storage.Storage
 	botUsername         string // Username бота для формирования ссылок (например, "my_quiz_bot")
 	userIDToRunID       map[int64]string
 	IsLecturersID       map[int64]bool
@@ -42,16 +44,20 @@ type Bot struct {
 // Используется для формирования ссылок: https://t.me/<botUsername>?start=join_<runID>
 func NewBot(
 	client client.Client,
+	auth auth.Auth,
 	fetcher fetcher.Fetcher,
 	sender sender.Sender,
 	quizEngine engine.QuizEngine,
+	storage storage.Storage,
 	botUsername string,
 ) *Bot {
 	return &Bot{
 		client:              client,
+		auth:                auth,
 		fetcher:             fetcher,
 		sender:              sender,
 		engine:              quizEngine,
+		storage:             storage,
 		botUsername:         botUsername,
 		userIDToRunID:       make(map[int64]string),
 		IsLecturersID:       make(map[int64]bool),
@@ -65,7 +71,7 @@ func NewBot(
 
 // Run запускает бота (long polling).
 func (b *Bot) Run() error {
-	log.Printf("Бот запущен")
+	slog.Debug("Bot started!")
 
 	for { // long polling
 		updates, err := b.fetcher.GetUpdates(updatesTimeout)
@@ -84,18 +90,13 @@ func (b *Bot) Run() error {
 
 // HandleUpdate обрабатывает одно обновление.
 func (b *Bot) HandleUpdate(update client.Update) error {
-	// TODO: HandleUpdate проверяет права (пр: студент не может изменять квиз) и определяет
-	// TODO: тип апдейта и что с ним должен сделать engine
 	if update.Message != nil {
 		return b.handleMessageUpdate(update.Message)
 	} else if update.CallbackQuery != nil {
 		return b.handleCallbackUpdate(update.CallbackQuery)
 	}
 
-	return errors.New("undefined update type")
-	// TODO: новые апдейты попадают в engine, он проверяет их на корректность, обрабатывает
-	// TODO: и отдает готовый результат в sender
-	// TODO: sender опредяеляет, кому надо отдать обработанные апдейты, и отдает
+	return fmt.Errorf("%w, update :%v", errors.New("undefined update type"), update)
 }
 
 // handleMessageUpdate обрабатывает одно сообщение.
@@ -118,7 +119,7 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 		return err
 	}
 
-	text := strings.Split(message.Text, " ")
+	text := strings.Fields(message.Text)
 
 	if len(text[0]) < 1 {
 		_, err := b.sender.Message(message.Chat.ID, msgUnknownText, nil)
@@ -139,14 +140,20 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 			return err
 		}
 	} else if len(text) == 4 {
-		if IsCorrectStudentsData(text) {
-			// TODO: запись данных студента в БД.
-			_, err := b.sender.Message(message.Chat.ID, msgStudentsSuccessfullVerification, nil)
+		ctx := context.Background()
 
+		err := b.auth.UpdateStudentData(ctx, b.storage, message.From.ID, text)
+		if errors.Is(err, auth.ErrValidation) {
+			slog.Debug("incorrect student data: ", "error", err)
+
+			_, err = b.sender.Message(message.Chat.ID, msgStudentsDataMistake, nil)
+
+			return err
+		} else if err != nil {
 			return err
 		}
 
-		_, err := b.sender.Message(message.Chat.ID, msgStudentsDataMistake, nil)
+		_, err = b.sender.Message(message.Chat.ID, msgStudentsSuccessfullVerification, nil)
 
 		return err
 	}
@@ -158,6 +165,18 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 
 // handleStartCommand обрабатывает /start и /start join_<runID> команды.
 func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
+	ctx := context.Background()
+	err := b.auth.CreateUser(ctx, b.storage, message.From.ID)
+	if errors.Is(err, storage.ErrUserAlreadyExists) {
+		slog.Debug("Error while creating new user", "error", err)
+	} else if err != nil {
+		return err
+	}
+
+	if !errors.Is(err, storage.ErrUserAlreadyExists) {
+		slog.Debug("User in database now", "username", message.From.Username)
+	}
+
 	if len(text) == 1 {
 		keyboard := client.InlineKeyboardMarkup{
 			InlineKeyboard: [][]client.InlineKeyboardButton{
@@ -628,30 +647,4 @@ func (b *Bot) handleFinishedEvent(runID string) error {
 	fileName := fmt.Sprintf(`Результаты квиза "%s"`, res.QuizTitle)
 
 	return b.sender.Document(ownerChatID, fileName, csvData)
-}
-
-func IsCorrectStudentsData(data []string) bool {
-	fullName := data[:len(data)-1]
-
-	for _, word := range fullName {
-		if len(word) < 2 {
-			return false
-		}
-
-		if !unicode.IsUpper([]rune(word)[0]) {
-			return false
-		}
-
-		for _, letter := range word[1:] {
-			if !unicode.IsLower(letter) && letter != '-' {
-				return false
-			}
-		}
-	}
-
-	if _, err := strconv.Atoi(data[3]); err != nil {
-		return false
-	}
-
-	return true
 }

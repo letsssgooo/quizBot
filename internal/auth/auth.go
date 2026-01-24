@@ -9,10 +9,12 @@ import (
 	"github.com/letsssgooo/quizBot/internal/storage"
 )
 
+// BotAuth реализует Auth
 type BotAuth struct {
 	Roles map[string]struct{}
 }
 
+// NewBotAuth создает BotAuth
 func NewBotAuth() *BotAuth {
 	return &BotAuth{
 		Roles: map[string]struct{}{
@@ -22,16 +24,11 @@ func NewBotAuth() *BotAuth {
 	}
 }
 
-func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, username, message string) error {
-	fullName, err := ParseFullName(message)
-	if err != nil {
-		return err
-	}
-
-	err = st.SaveFullName(ctx, &models.UserModel{
-		Username:  username,
-		FullName:  fullName,
-		CreatedAt: time.Now(),
+// CreateUser создает нового пользотеля
+func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, telegramID int64) error {
+	err := st.CreateUser(ctx, &models.UserModel{
+		TelegramID: telegramID,
+		CreatedAt:  time.Now(),
 	})
 	if err != nil {
 		return err
@@ -40,7 +37,27 @@ func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, username, 
 	return nil
 }
 
-func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, username, message string) error {
+// UpdateStudentData обновляет данные студента у существующего пользотеля
+func (q *BotAuth) UpdateStudentData(ctx context.Context, st storage.Storage, telegramID int64, message []string) error {
+	studentsData, err := ParseStudentsData(message)
+	if err != nil {
+		return err
+	}
+
+	err = st.UpdateStudentData(ctx, &models.UserModel{
+		TelegramID: telegramID,
+		FullName:   studentsData[0],
+		Group:      studentsData[1],
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AddRole добавляет роль у существующего пользотеля
+func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, telegramID int64, message string) error {
 	role, err := ParseRole(message)
 	if err != nil {
 		return err
@@ -51,8 +68,8 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, username, mes
 	}
 
 	err = st.AddRole(ctx, &models.UserModel{
-		Username: username,
-		Role:     role,
+		TelegramID: telegramID,
+		Role:       role,
 	})
 	if err != nil {
 		return err
@@ -61,27 +78,11 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, username, mes
 	return nil
 }
 
-func (q *BotAuth) AddGroup(ctx context.Context, st storage.Storage, username, message string) error {
-	group, err := ParseGroup(message)
-	if err != nil {
-		return err
-	}
-
-	err = st.AddGroup(ctx, &models.UserModel{
-		Username: username,
-		Group:    group,
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, username, role string) (bool, error) {
+// CheckRole проверяет роль у существующего пользователя
+func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, telegramID int64, role string) (bool, error) {
 	hasRole, err := st.CheckRole(ctx, &models.UserModel{
-		Username: username,
-		Role:     role,
+		TelegramID: telegramID,
+		Role:       role,
 	})
 	if err != nil {
 		return false, err
