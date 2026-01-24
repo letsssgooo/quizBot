@@ -20,8 +20,8 @@ type Storage interface {
 	// AddRole добавляет пользотелю роль
 	AddRole(ctx context.Context, user *models.UserModel) error
 
-	// CheckRole проверяет есть ли у пользователя роль role
-	CheckRole(ctx context.Context, user *models.UserModel) (bool, error)
+	// CheckRole возвращает роль у существующего пользователя. Возвращает nil, если роли нет.
+	CheckRole(ctx context.Context, user *models.UserModel) (*string, error)
 
 	//// SaveQuiz сохраняет квиз.
 	//SaveQuiz(ctx context.Context, q *engine.Quiz) error

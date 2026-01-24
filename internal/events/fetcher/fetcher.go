@@ -11,6 +11,7 @@ type TelegramFetcher struct {
 // NewTelegramFetcher возвращает *TelegramFetcher
 func NewTelegramFetcher(client client.Client) *TelegramFetcher {
 	updates, _ := client.GetUpdates(0, 0)
+
 	offset := 0
 	if len(updates) > 0 {
 		offset = updates[len(updates)-1].UpdateID + 1

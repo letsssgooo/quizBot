@@ -47,7 +47,7 @@ func (s *Storage) CreateUser(ctx context.Context, user *models.UserModel) error 
 // UpdateStudentData обновляет данные о студенте в БД
 func (s *Storage) UpdateStudentData(ctx context.Context, user *models.UserModel) error {
 	query := `
-	UPDATE users SET full_name = $1, group = $2 WHERE telegram_id = $3;
+	UPDATE users SET full_name = $1, user_group = $2 WHERE telegram_id = $3;
 	`
 
 	_, err := s.pool.Exec(ctx, query, user.FullName, user.Group, user.TelegramID)
@@ -66,18 +66,18 @@ func (s *Storage) AddRole(ctx context.Context, user *models.UserModel) error {
 	return err
 }
 
-// CheckRole проверяет роль пользователся в БД
-func (s *Storage) CheckRole(ctx context.Context, user *models.UserModel) (bool, error) {
+// CheckRole возвращает роль пользователся в БД. Возвращает nil, если роли нет.
+func (s *Storage) CheckRole(ctx context.Context, user *models.UserModel) (*string, error) {
 	query := `
-		SELECT EXISTS(SELECT 1 FROM users WHERE telegram_id = $1 AND role = $2)
+		SELECT role FROM users WHERE telegram_id = $1
 	`
 
-	var hasRole bool
+	var role *string
 
-	err := s.pool.QueryRow(ctx, query, user.TelegramID, user.Role).Scan(&hasRole)
+	err := s.pool.QueryRow(ctx, query, user.TelegramID).Scan(&role)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return hasRole, nil
+	return role, nil
 }

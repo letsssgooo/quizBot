@@ -18,9 +18,15 @@ type Auth interface {
 	// AddRole добавляет пользователю роль
 	AddRole(ctx context.Context, st storage.Storage, telegramID int64, message string) error
 
-	// CheckRole проверяет роль пользователя
-	CheckRole(ctx context.Context, st storage.Storage, telegramID int64, role string) (bool, error)
+	// CheckRole возвращает роль у существующего пользователя. Возвращает nil, если роли нет.
+	CheckRole(ctx context.Context, st storage.Storage, telegramID int64) (*string, error)
 }
 
 // Ошибки авторизации
 var ErrValidation = errors.New("validation error")
+
+// Роли
+var (
+	RoleLecturer = "lecturer"
+	RoleStudent  = "student"
+)

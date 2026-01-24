@@ -29,7 +29,6 @@ type Bot struct {
 	storage             storage.Storage
 	botUsername         string // Username бота для формирования ссылок (например, "my_quiz_bot")
 	userIDToRunID       map[int64]string
-	IsLecturersID       map[int64]bool
 	runIDToLobbyEndChan map[string]chan struct{}
 	runIDToQuiz         map[string]*engine.Quiz
 	userIDToChatID      map[int64]int64
@@ -60,7 +59,6 @@ func NewBot(
 		storage:             storage,
 		botUsername:         botUsername,
 		userIDToRunID:       make(map[int64]string),
-		IsLecturersID:       make(map[int64]bool),
 		runIDToLobbyEndChan: make(map[string]chan struct{}),
 		runIDToQuiz:         make(map[string]*engine.Quiz),
 		userIDToChatID:      make(map[int64]int64),
@@ -111,14 +109,6 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 		return b.handleAnswerUpdate(message.Chat.ID, message.From.ID, message.Text, runID)
 	}
 
-	if b.IsLecturersID[ID] && message.Document != nil {
-		return b.handleDocumentUpdate(message)
-	} else if !b.IsLecturersID[ID] && message.Document != nil { // TODO: SELECT запрос в БД на проверку прав, вместо мапы
-		_, err := b.sender.Message(message.Chat.ID, msgNoRights, nil)
-
-		return err
-	}
-
 	text := strings.Fields(message.Text)
 
 	if len(text[0]) < 1 {
@@ -158,7 +148,22 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 		return err
 	}
 
-	_, err := b.sender.Message(message.Chat.ID, msgUnknownText, nil)
+	ctx := context.Background()
+
+	userRole, err := b.auth.CheckRole(ctx, b.storage, message.From.ID)
+	if err != nil {
+		return err
+	}
+
+	if *userRole == auth.RoleLecturer && message.Document != nil {
+		return b.handleDocumentUpdate(message)
+	} else if *userRole != auth.RoleLecturer && message.Document != nil {
+		_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
+
+		return err
+	}
+
+	_, err = b.sender.Message(message.Chat.ID, msgUnknownText, nil)
 
 	return err
 }
@@ -166,6 +171,7 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 // handleStartCommand обрабатывает /start и /start join_<runID> команды.
 func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
 	ctx := context.Background()
+
 	err := b.auth.CreateUser(ctx, b.storage, message.From.ID)
 	if errors.Is(err, storage.ErrUserAlreadyExists) {
 		slog.Debug("Error while creating new user", "error", err)
@@ -190,7 +196,7 @@ func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
 		}
 
 		opts := &client.SendOptions{ReplyMarkup: &keyboard}
-		_, err := b.sender.Message(message.Chat.ID, msgIdentification, opts)
+		_, err = b.sender.Message(message.Chat.ID, msgIdentification, opts)
 
 		return err
 	}
@@ -249,9 +255,15 @@ func (b *Bot) handleStudentsJoin(message *client.Message, runID string) error {
 
 // handleHelpCommand обрабатывает /help команду.
 func (b *Bot) handleHelpCommand(message *client.Message) error {
-	isLecturersID, ok := b.IsLecturersID[message.From.ID]
-	if ok {
-		if isLecturersID {
+	ctx := context.Background()
+
+	userRole, err := b.auth.CheckRole(ctx, b.storage, message.From.ID)
+	if err != nil {
+		return err
+	}
+
+	if userRole != nil {
+		if *userRole == auth.RoleLecturer {
 			_, err := b.sender.Message(message.Chat.ID, msgLecturersHelp, nil)
 
 			return err
@@ -262,7 +274,7 @@ func (b *Bot) handleHelpCommand(message *client.Message) error {
 		return err
 	}
 
-	_, err := b.sender.Message(message.Chat.ID, msgHelp, nil)
+	_, err = b.sender.Message(message.Chat.ID, msgHelp, nil)
 
 	return err
 }
@@ -393,6 +405,13 @@ func (b *Bot) handleEditLecturerMessage(runID string, botMessage *client.Message
 // handleCallbackUpdate обрабатывает callback запрос.
 func (b *Bot) handleCallbackUpdate(callback *client.CallbackQuery) error {
 	if callback.Data == "Student" || callback.Data == "Lecturer" {
+		ctx := context.Background()
+
+		err := b.auth.AddRole(ctx, b.storage, callback.From.ID, callback.Data)
+		if err != nil {
+			return err
+		}
+
 		return b.handleIdentificationCallbackUpdate(callback)
 	}
 
@@ -403,26 +422,11 @@ func (b *Bot) handleCallbackUpdate(callback *client.CallbackQuery) error {
 func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery) error {
 	switch callback.Data {
 	case "Student":
-		b.mu.Lock()
-
-		b.IsLecturersID[callback.From.ID] = false // пишу это явно, чтобы понимать,
-		// что этот пользователь именно студент,
-		// а не тот, кто еще не выбрал роль
-
-		b.mu.Unlock()
-
 		_, err := b.sender.Message(callback.Message.Chat.ID, msgStudentsData, nil)
 
 		return err
 	case "Lecturer":
-		b.mu.Lock()
-
 		// TODO: запись данных преподавателя в БД (если надо, но скорее всего не понадобится)
-		b.IsLecturersID[callback.From.ID] = true
-		b.hasLecturer = true
-
-		b.mu.Unlock()
-
 		_, err := b.sender.Message(callback.Message.Chat.ID, msgLecturersSuccessfullVerification, nil)
 
 		return err

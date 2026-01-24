@@ -18,8 +18,8 @@ type BotAuth struct {
 func NewBotAuth() *BotAuth {
 	return &BotAuth{
 		Roles: map[string]struct{}{
-			"teacher": {},
-			"student": {},
+			RoleLecturer: {},
+			RoleStudent:  {},
 		},
 	}
 }
@@ -78,15 +78,14 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, telegramID in
 	return nil
 }
 
-// CheckRole проверяет роль у существующего пользователя
-func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, telegramID int64, role string) (bool, error) {
-	hasRole, err := st.CheckRole(ctx, &models.UserModel{
+// CheckRole возвращает роль у существующего пользователя. Возвращает nil, если роли нет.
+func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, telegramID int64) (*string, error) {
+	role, err := st.CheckRole(ctx, &models.UserModel{
 		TelegramID: telegramID,
-		Role:       role,
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return hasRole, nil
+	return role, nil
 }
