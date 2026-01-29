@@ -64,6 +64,12 @@ func (e *Engine) LoadQuiz(data []byte) (*Quiz, error) {
 // StartRun создаёт новый запуск квиза.
 // Возвращает указатель на запуск квиза.
 func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	if quiz == nil {
 		return nil, ErrNilQuiz
 	}
@@ -87,6 +93,12 @@ func (e *Engine) StartRun(ctx context.Context, quiz *Quiz) (*QuizRun, error) {
 
 // JoinRun добавляет участника в запуск квиза.
 func (e *Engine) JoinRun(ctx context.Context, runID string, participant *Participant) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -207,7 +219,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 }
 
 // ShuffleAnswers перемешивает порядок ответов на вопрос.
-func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error {
+func (e *Engine) ShuffleAnswers(runID string, event QuizEvent) error {
 	if event.Type != EventTypeQuestion {
 		return ErrNoQuestionType
 	}
@@ -247,7 +259,6 @@ func (e *Engine) ShuffleAnswers(ctx context.Context, runID string, event QuizEve
 
 // SubmitAnswer регистрирует ответ участника.
 func (e *Engine) SubmitAnswer(
-	ctx context.Context,
 	runID string,
 	participantID int64,
 	questionIdx int,
@@ -308,7 +319,6 @@ func (e *Engine) SubmitAnswer(
 
 // SubmitAnswerByLetter регистрирует ответ участника по букве.
 func (e *Engine) SubmitAnswerByLetter(
-	ctx context.Context,
 	runID string,
 	participantID int64,
 	letter string,
@@ -323,7 +333,7 @@ func (e *Engine) SubmitAnswerByLetter(
 		return ErrConvertLetterToIndex
 	}
 
-	return e.SubmitAnswer(ctx, runID, participantID, e.GetCurrentQuestion(runID), answerIndex)
+	return e.SubmitAnswer(runID, participantID, e.GetCurrentQuestion(runID), answerIndex)
 }
 
 // GetCurrentQuestion возвращает текущий номер вопроса.

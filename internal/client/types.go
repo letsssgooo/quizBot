@@ -2,6 +2,11 @@
 
 package client
 
+import (
+	"context"
+	"time"
+)
+
 // Update представляет обновление от Telegram.
 type Update struct {
 	UpdateID      int            `json:"update_id"`
@@ -81,7 +86,7 @@ type Client interface {
 	AnswerCallback(callbackID string, text string) error
 
 	// GetUpdates получает обновления (long polling).
-	GetUpdates(offset int, timeout int) ([]Update, error)
+	GetUpdates(ctx context.Context, offset int, timeout int) ([]Update, error)
 
 	// GetFile получает информацию о файле.
 	GetFile(fileID string) (string, error)
@@ -92,3 +97,9 @@ type Client interface {
 	// SendDocument отправляет файл как документ.
 	SendDocument(chatID int64, fileName string, data []byte) error
 }
+
+// Таймауты
+const (
+	timeoutSend = 3 * time.Second
+	timeoutDownload = 5 * time.Second
+)

@@ -28,6 +28,12 @@ func NewStorage(ctx context.Context, dsn string) (*Storage, error) {
 	return &Storage{pool: pool}, nil
 }
 
+func (s *Storage) Close() {
+	if s.pool != nil {
+		s.pool.Close()
+	}
+}
+
 // CreateUser создает нового пользователя в базе данных.
 // Возвращает storage.ErrUserAlreadyExists, если пользователь уже в БД.
 func (s *Storage) CreateUser(ctx context.Context, user *models.UserModel) error {

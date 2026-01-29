@@ -1,6 +1,10 @@
 package fetcher
 
-import "github.com/letsssgooo/quizBot/internal/client"
+import (
+	"context"
+
+	"github.com/letsssgooo/quizBot/internal/client"
+)
 
 // TelegramFetcher реализует Fetcher через Telegram Bot API.
 type TelegramFetcher struct {
@@ -9,8 +13,8 @@ type TelegramFetcher struct {
 }
 
 // NewTelegramFetcher возвращает *TelegramFetcher
-func NewTelegramFetcher(client client.Client) *TelegramFetcher {
-	updates, _ := client.GetUpdates(0, 0)
+func NewTelegramFetcher(ctx context.Context, client client.Client) *TelegramFetcher {
+	updates, _ := client.GetUpdates(ctx, 0, 0)
 
 	offset := 0
 	if len(updates) > 0 {
@@ -24,8 +28,8 @@ func NewTelegramFetcher(client client.Client) *TelegramFetcher {
 }
 
 // GetUpdates получает слайс Update, учитывая timeout
-func (f *TelegramFetcher) GetUpdates(timeout int) ([]client.Update, error) {
-	updates, err := f.client.GetUpdates(f.offset, timeout)
+func (f *TelegramFetcher) GetUpdates(ctx context.Context, timeout int) ([]client.Update, error) {
+	updates, err := f.client.GetUpdates(ctx, f.offset, timeout)
 	if err != nil {
 		return nil, err
 	}

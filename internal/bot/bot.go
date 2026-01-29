@@ -68,37 +68,45 @@ func NewBot(
 }
 
 // Run запускает бота (long polling).
-func (b *Bot) Run() error {
+func (b *Bot) Run(ctx context.Context) error {
 	slog.Debug("Bot started!")
 
 	for { // long polling
-		updates, err := b.fetcher.GetUpdates(updatesTimeout)
+		updates, err := b.fetcher.GetUpdates(ctx, updatesTimeout)
 		if err != nil {
 			return err
 		}
 
 		for _, update := range updates {
-			err = b.HandleUpdate(update)
+			err = b.HandleUpdate(ctx, update)
 			if err != nil {
 				return err
 			}
 		}
+
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
 	}
+
+	// TODO: отправить всем пользователям сообщение о остановки бота (+ запрос в БД)
 }
 
 // HandleUpdate обрабатывает одно обновление.
-func (b *Bot) HandleUpdate(update client.Update) error {
+func (b *Bot) HandleUpdate(ctx context.Context, update client.Update) error {
 	if update.Message != nil {
-		return b.handleMessageUpdate(update.Message)
+		return b.handleMessageUpdate(ctx, update.Message)
 	} else if update.CallbackQuery != nil {
-		return b.handleCallbackUpdate(update.CallbackQuery)
+		return b.handleCallbackUpdate(ctx, update.CallbackQuery)
 	}
 
 	return fmt.Errorf("%w, update :%v", errors.New("undefined update type"), update)
 }
 
 // handleMessageUpdate обрабатывает одно сообщение.
-func (b *Bot) handleMessageUpdate(message *client.Message) error {
+func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) error {
 	ID := message.From.ID
 
 	b.mu.Lock()
@@ -121,7 +129,7 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 		// TODO: добавить все команды бота
 		switch text[0] {
 		case "/start":
-			return b.handleStartCommand(message, text)
+			return b.handleStartCommand(ctx, message, text)
 		case "/help":
 			return b.handleHelpCommand(message)
 		default:
@@ -130,9 +138,7 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 			return err
 		}
 	} else if len(text) == 4 {
-		ctx := context.Background()
-
-		err := b.auth.UpdateStudentData(ctx, b.storage, message.From.ID, text)
+		err := b.auth.UpdateStudentData(b.storage, message.From.ID, text)
 		if errors.Is(err, auth.ErrValidation) {
 			slog.Debug("incorrect student data: ", "error", err)
 
@@ -148,15 +154,13 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 		return err
 	}
 
-	ctx := context.Background()
-
-	userRole, err := b.auth.CheckRole(ctx, b.storage, message.From.ID)
+	userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
 	if err != nil {
 		return err
 	}
 
 	if *userRole == auth.RoleLecturer && message.Document != nil {
-		return b.handleDocumentUpdate(message)
+		return b.handleDocumentUpdate(ctx, message)
 	} else if *userRole != auth.RoleLecturer && message.Document != nil {
 		_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
 
@@ -169,10 +173,12 @@ func (b *Bot) handleMessageUpdate(message *client.Message) error {
 }
 
 // handleStartCommand обрабатывает /start и /start join_<runID> команды.
-func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
-	ctx := context.Background()
-
-	err := b.auth.CreateUser(ctx, b.storage, message.From.ID)
+func (b *Bot) handleStartCommand(
+	ctx context.Context,
+	message *client.Message,
+	text []string,
+) error {
+	err := b.auth.CreateUser(b.storage, message.From.ID)
 	if errors.Is(err, storage.ErrUserAlreadyExists) {
 		slog.Debug("Error while creating new user", "error", err)
 	} else if err != nil {
@@ -204,11 +210,11 @@ func (b *Bot) handleStartCommand(message *client.Message, text []string) error {
 	// студент присоединен к квизу по ссылке
 	runID := strings.Split(text[1], "_")[1]
 
-	return b.handleStudentsJoin(message, runID)
+	return b.handleStudentsJoin(ctx, message, runID)
 }
 
 // handleStudentsJoin присоединяет студента к квизу.
-func (b *Bot) handleStudentsJoin(message *client.Message, runID string) error {
+func (b *Bot) handleStudentsJoin(ctx context.Context, message *client.Message, runID string) error {
 	b.mu.Lock()
 
 	run, err := b.engine.GetRun(runID)
@@ -226,7 +232,6 @@ func (b *Bot) handleStudentsJoin(message *client.Message, runID string) error {
 		return err
 	}
 
-	ctx := context.Background()
 	participant := &engine.Participant{
 		TelegramID: message.From.ID,
 		Username:   message.From.Username,
@@ -255,9 +260,7 @@ func (b *Bot) handleStudentsJoin(message *client.Message, runID string) error {
 
 // handleHelpCommand обрабатывает /help команду.
 func (b *Bot) handleHelpCommand(message *client.Message) error {
-	ctx := context.Background()
-
-	userRole, err := b.auth.CheckRole(ctx, b.storage, message.From.ID)
+	userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
 	if err != nil {
 		return err
 	}
@@ -280,9 +283,11 @@ func (b *Bot) handleHelpCommand(message *client.Message) error {
 }
 
 // handleAnswerUpdate обрабатывает ответ студента на вопрос.
-func (b *Bot) handleAnswerUpdate(chatID, fromID int64, text string, runID string) error {
-	ctx := context.Background()
-
+func (b *Bot) handleAnswerUpdate(
+	chatID, fromID int64,
+	text string,
+	runID string,
+) error {
 	b.mu.Lock()
 
 	currentQuestion := b.engine.GetCurrentQuestion(runID)
@@ -295,7 +300,7 @@ func (b *Bot) handleAnswerUpdate(chatID, fromID int64, text string, runID string
 		return err
 	}
 
-	err := b.engine.SubmitAnswerByLetter(ctx, runID, fromID, text)
+	err := b.engine.SubmitAnswerByLetter(runID, fromID, text)
 	if err != nil {
 		return err
 	}
@@ -313,7 +318,7 @@ func (b *Bot) handleAnswerUpdate(chatID, fromID int64, text string, runID string
 }
 
 // handleDocumentUpdate обрабатывает присланный преподавателем JSON файл.
-func (b *Bot) handleDocumentUpdate(message *client.Message) error {
+func (b *Bot) handleDocumentUpdate(ctx context.Context, message *client.Message) error {
 	filePath, err := b.client.GetFile(message.Document.FileID)
 	if err != nil {
 		return err
@@ -331,7 +336,6 @@ func (b *Bot) handleDocumentUpdate(message *client.Message) error {
 
 	quiz.OwnerID = message.From.ID
 	quiz.CreatedAt = time.Now()
-	ctx := context.Background()
 
 	activeQuizRun, err := b.engine.StartRun(ctx, quiz)
 	if err != nil {
@@ -365,14 +369,19 @@ func (b *Bot) handleDocumentUpdate(message *client.Message) error {
 	}
 
 	go func() {
-		_ = b.handleEditLecturerMessage(activeQuizRun.ID, botMessage, opts)
+		_ = b.handleEditLecturerMessage(ctx, activeQuizRun.ID, botMessage, opts)
 	}()
 
 	return nil
 }
 
 // handleEditLecturerMessage каждые 3 сек изменяет счетчик участников в сообщении бота.
-func (b *Bot) handleEditLecturerMessage(runID string, botMessage *client.Message, opts *client.SendOptions) error {
+func (b *Bot) handleEditLecturerMessage(
+	ctx context.Context,
+	runID string,
+	botMessage *client.Message,
+	opts *client.SendOptions,
+) error {
 	lobbyEndChan := make(chan struct{})
 
 	b.mu.Lock()
@@ -398,16 +407,15 @@ func (b *Bot) handleEditLecturerMessage(runID string, botMessage *client.Message
 			_ = b.client.EditMessage(botMessage.Chat.ID, botMessage.MessageID, text, opts)
 		case <-lobbyEndChan:
 			return nil
+		case <-ctx.Done():
 		}
 	}
 }
 
 // handleCallbackUpdate обрабатывает callback запрос.
-func (b *Bot) handleCallbackUpdate(callback *client.CallbackQuery) error {
+func (b *Bot) handleCallbackUpdate(ctx context.Context, callback *client.CallbackQuery) error {
 	if callback.Data == "Student" || callback.Data == "Lecturer" {
-		ctx := context.Background()
-
-		err := b.auth.AddRole(ctx, b.storage, callback.From.ID, callback.Data)
+		err := b.auth.AddRole(b.storage, callback.From.ID, callback.Data)
 		if err != nil {
 			return err
 		}
@@ -415,10 +423,10 @@ func (b *Bot) handleCallbackUpdate(callback *client.CallbackQuery) error {
 		return b.handleIdentificationCallbackUpdate(callback)
 	}
 
-	return b.handleQuizStartCallbackUpdate(callback)
+	return b.handleQuizStartCallbackUpdate(ctx, callback)
 }
 
-// handleIdentificationCallbackUpdate определяет роль пользователя.
+// handleIdentificationCallbackUpdate обрабатывает CallbackUpdate на основе роли.
 func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery) error {
 	switch callback.Data {
 	case "Student":
@@ -427,7 +435,11 @@ func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery)
 		return err
 	case "Lecturer":
 		// TODO: запись данных преподавателя в БД (если надо, но скорее всего не понадобится)
-		_, err := b.sender.Message(callback.Message.Chat.ID, msgLecturersSuccessfullVerification, nil)
+		_, err := b.sender.Message(
+			callback.Message.Chat.ID,
+			msgLecturersSuccessfullVerification,
+			nil,
+		)
 
 		return err
 	default:
@@ -436,14 +448,16 @@ func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery)
 }
 
 // handleQuizStartCallbackUpdate запускает квиз.
-func (b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) error {
+func (b *Bot) handleQuizStartCallbackUpdate(
+	ctx context.Context,
+	callback *client.CallbackQuery,
+) error {
 	err := b.client.AnswerCallback(callback.ID, msgQuizRunning)
 	if err != nil {
 		return err
 	}
 
 	runID := strings.Split(callback.Data, " ")[1]
-	ctx := context.Background()
 
 	events, err := b.engine.StartQuiz(ctx, runID)
 	if err != nil {
@@ -451,7 +465,9 @@ func (b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) erro
 	}
 
 	b.mu.Lock()
-	close(b.runIDToLobbyEndChan[runID]) // квиз запустился => больше нет лобби => больше не запускаем студентов
+	close(
+		b.runIDToLobbyEndChan[runID],
+	) // квиз запустился => больше нет лобби => больше не запускаем студентов
 	participantsCnt := b.engine.GetParticipantCount(runID)
 	b.mu.Unlock()
 
@@ -465,10 +481,10 @@ func (b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) erro
 	go func() {
 		for event := range events {
 			switch event.Type {
-			case engine.EventTypeQuestion:
-				_ = b.handleQuestionEvent(runID, event)
 			case engine.EventTypeFinished:
 				_ = b.handleFinishedEvent(runID)
+			case engine.EventTypeQuestion:
+				_ = b.handleQuestionEvent(ctx, runID, event)
 			}
 		}
 	}()
@@ -477,7 +493,7 @@ func (b *Bot) handleQuizStartCallbackUpdate(callback *client.CallbackQuery) erro
 }
 
 // handleQuestionEvent отправляет каждому студенту вопрос со счетчиком времени.
-func (b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
+func (b *Bot) handleQuestionEvent(ctx context.Context, runID string, event engine.QuizEvent) error {
 	var builder strings.Builder
 
 	text := fmt.Sprintf("Вопрос %d", event.QuestionIdx+1) + "\n\n"
@@ -525,14 +541,19 @@ func (b *Bot) handleQuestionEvent(runID string, event engine.QuizEvent) error {
 	}
 
 	go func() {
-		_ = b.handleEditUserMessage(runID, userIDToBotMessage, event)
+		_ = b.handleEditUserMessage(ctx, runID, userIDToBotMessage, event)
 	}()
 
 	return nil
 }
 
 // handleEditUserMessage изменяет счетчик времени в сообщении бота.
-func (b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*client.Message, event engine.QuizEvent) error {
+func (b *Bot) handleEditUserMessage(
+	ctx context.Context,
+	runID string,
+	userIDToBotMessage map[int64]*client.Message,
+	event engine.QuizEvent,
+) error {
 	ticker := time.NewTicker(time.Second)
 
 	b.mu.Lock()
@@ -548,7 +569,12 @@ func (b *Bot) handleEditUserMessage(runID string, userIDToBotMessage map[int64]*
 
 	lim := questionTime
 	for range lim {
-		<-ticker.C
+		select {
+		case <-ctx.Done():
+			break
+		case <-ticker.C:
+		}
+
 
 		questionTime--
 

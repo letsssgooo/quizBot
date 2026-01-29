@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"time"
 	"errors"
+	"time"
 )
 
 // Quiz представляет загруженный квиз.
@@ -111,11 +111,10 @@ type QuizEngine interface { //nolint:revive
 	StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent, error)
 
 	// ShuffleAnswers перемешивает порядок ответов на вопрос.
-	ShuffleAnswers(ctx context.Context, runID string, event QuizEvent) error
+	ShuffleAnswers(runID string, event QuizEvent) error
 
 	// SubmitAnswer регистрирует ответ участника по индексу (0-based).
 	SubmitAnswer(
-		ctx context.Context,
 		runID string,
 		participantID int64,
 		questionIdx int,
@@ -125,7 +124,6 @@ type QuizEngine interface { //nolint:revive
 	// SubmitAnswerByLetter регистрирует ответ участника по букве (A, B, C, D, E, F).
 	// Это основной способ ответа — участник пишет букву в чат.
 	SubmitAnswerByLetter(
-		ctx context.Context,
 		runID string,
 		participantID int64,
 		letter string,

@@ -1,6 +1,8 @@
 package sender
 
-import "github.com/letsssgooo/quizBot/internal/client"
+import (
+	"github.com/letsssgooo/quizBot/internal/client"
+)
 
 // Sender определяет основной интерфейс для отправки сообщений.
 type Sender interface {

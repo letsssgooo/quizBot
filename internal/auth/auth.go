@@ -25,7 +25,10 @@ func NewBotAuth() *BotAuth {
 }
 
 // CreateUser создает нового пользотеля
-func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, telegramID int64) error {
+func (q *BotAuth) CreateUser(st storage.Storage, telegramID int64) error {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutAuth)
+	defer cancelFunc()
+
 	err := st.CreateUser(ctx, &models.UserModel{
 		TelegramID: telegramID,
 		CreatedAt:  time.Now(),
@@ -38,7 +41,10 @@ func (q *BotAuth) CreateUser(ctx context.Context, st storage.Storage, telegramID
 }
 
 // UpdateStudentData обновляет данные студента у существующего пользотеля
-func (q *BotAuth) UpdateStudentData(ctx context.Context, st storage.Storage, telegramID int64, message []string) error {
+func (q *BotAuth) UpdateStudentData(st storage.Storage, telegramID int64, message []string) error {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutAuth)
+	defer cancelFunc()
+
 	studentsData, err := ParseStudentsData(message)
 	if err != nil {
 		return err
@@ -57,7 +63,10 @@ func (q *BotAuth) UpdateStudentData(ctx context.Context, st storage.Storage, tel
 }
 
 // AddRole добавляет роль у существующего пользотеля
-func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, telegramID int64, message string) error {
+func (q *BotAuth) AddRole(st storage.Storage, telegramID int64, message string) error {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutAuth)
+	defer cancelFunc()
+
 	role, err := ParseRole(message)
 	if err != nil {
 		return err
@@ -79,7 +88,10 @@ func (q *BotAuth) AddRole(ctx context.Context, st storage.Storage, telegramID in
 }
 
 // CheckRole возвращает роль у существующего пользователя. Возвращает nil, если роли нет.
-func (q *BotAuth) CheckRole(ctx context.Context, st storage.Storage, telegramID int64) (*string, error) {
+func (q *BotAuth) CheckRole(st storage.Storage, telegramID int64) (*string, error) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutAuth)
+	defer cancelFunc()
+
 	role, err := st.CheckRole(ctx, &models.UserModel{
 		TelegramID: telegramID,
 	})

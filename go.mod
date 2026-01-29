@@ -8,8 +8,8 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v4 v4.18.3
-	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 )
 
 require (

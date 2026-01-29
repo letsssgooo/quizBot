@@ -1,6 +1,8 @@
 package sender
 
-import "github.com/letsssgooo/quizBot/internal/client"
+import (
+	"github.com/letsssgooo/quizBot/internal/client"
+)
 
 // TelegramSender реализует Sender через Telegram Bot API.
 type TelegramSender struct {

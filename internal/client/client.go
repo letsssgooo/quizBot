@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +29,11 @@ func NewHTTPClient(token string) *HTTPClient {
 
 // SendMessage отправляет сообщение text в чат chatID.
 // Возвращает указатель на структуру Message в случае успеха.
-func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (*Message, error) {
+func (c *HTTPClient) SendMessage(
+	chatID int64,
+	text string,
+	opts *SendOptions,
+) (*Message, error) {
 	params := map[string]interface{}{
 		"chat_id": chatID,
 		"text":    text,
@@ -44,7 +49,10 @@ func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (
 		}
 	}
 
-	rawResp, err := c.doRequest("SendMessage", params)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	rawResp, err := c.doRequest(ctx, "SendMessage", params)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +67,12 @@ func (c *HTTPClient) SendMessage(chatID int64, text string, opts *SendOptions) (
 
 // EditMessage изменяет сообщение messageID на text в чате chatID.
 // Возвращает nil в случае успеха.
-func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts *SendOptions) error {
+func (c *HTTPClient) EditMessage(
+	chatID int64,
+	messageID int,
+	text string,
+	opts *SendOptions,
+) error {
 	params := map[string]interface{}{
 		"chat_id":    chatID,
 		"text":       text,
@@ -76,7 +89,10 @@ func (c *HTTPClient) EditMessage(chatID int64, messageID int, text string, opts 
 		}
 	}
 
-	_, err := c.doRequest("editMessageText", params)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	_, err := c.doRequest(ctx, "editMessageText", params)
 	if err != nil {
 		return err
 	}
@@ -92,7 +108,10 @@ func (c *HTTPClient) DeleteMessage(chatID int64, messageID int) error {
 		"message_id": messageID,
 	}
 
-	_, err := c.doRequest("deleteMessage", params)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	_, err := c.doRequest(ctx, "deleteMessage", params)
 	if err != nil {
 		return err
 	}
@@ -109,7 +128,10 @@ func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 		"text":              text,
 	}
 
-	_, err := c.doRequest("answerCallbackQuery", params)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	_, err := c.doRequest(ctx, "answerCallbackQuery", params)
 	if err != nil {
 		return err
 	}
@@ -121,13 +143,13 @@ func (c *HTTPClient) AnswerCallback(callbackID string, text string) error {
 // Если новых обновлений нет, ждёт до timeout секунд.
 // Возвращает слайс Update.
 // Для продолжения обработки нужно передать offset = lastUpdateID + 1.
-func (c *HTTPClient) GetUpdates(offset int, timeout int) ([]Update, error) {
+func (c *HTTPClient) GetUpdates(ctx context.Context, offset int, timeout int) ([]Update, error) {
 	params := map[string]interface{}{
 		"offset":  offset,
 		"timeout": timeout,
 	}
 
-	rawResp, err := c.doRequest("getUpdates", params)
+	rawResp, err := c.doRequest(ctx, "getUpdates", params)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +169,10 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 		"file_id": fileID,
 	}
 
-	rawResp, err := c.doRequest("getFile", params)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	rawResp, err := c.doRequest(ctx, "getFile", params)
 	if err != nil {
 		return "", err
 	}
@@ -171,9 +196,20 @@ func (c *HTTPClient) GetFile(fileID string) (string, error) {
 func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	linkForDownload := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", c.token, filePath)
 
-	resp, err := c.httpClient.Get(linkForDownload)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutDownload)
+	defer cancelFunc()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, linkForDownload, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download the request from the link %s: %w", linkForDownload, err)
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to download the request from the link %s: %w",
+			linkForDownload,
+			err,
+		)
 	}
 
 	defer func() {
@@ -181,7 +217,11 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code %d for link %s", resp.StatusCode, linkForDownload)
+		return nil, fmt.Errorf(
+			"unexpected response status code %d for link %s",
+			resp.StatusCode,
+			linkForDownload,
+		)
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -194,7 +234,11 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 
 // SendDocument отправляет файл с названием fileName и содержимым data в чат chatID как документ.
 // Возвращает nil в случае успеха.
-func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) error {
+func (c *HTTPClient) SendDocument(
+	chatID int64,
+	fileName string,
+	data []byte,
+) error {
 	var buf bytes.Buffer
 
 	writer := multipart.NewWriter(&buf)
@@ -219,7 +263,15 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 
 	url := fmt.Sprintf(apiURL, c.token, "sendDocument")
 
-	resp, err := c.httpClient.Post(url, writer.FormDataContentType(), &buf)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeoutSend)
+	defer cancelFunc()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("failed to do post request for url %s: %w", url, err)
 	}
@@ -250,7 +302,11 @@ func (c *HTTPClient) SendDocument(chatID int64, fileName string, data []byte) er
 
 // doRequest выполняет запрос к Telegram API.
 // Возвращает результат запроса в случае успеха.
-func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (json.RawMessage, error) {
+func (c *HTTPClient) doRequest(
+	ctx context.Context,
+	method string,
+	params map[string]interface{},
+) (json.RawMessage, error) {
 	url := fmt.Sprintf(apiURL, c.token, method)
 
 	body, err := json.Marshal(params)
@@ -258,7 +314,12 @@ func (c *HTTPClient) doRequest(method string, params map[string]interface{}) (js
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
