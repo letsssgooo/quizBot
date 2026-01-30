@@ -71,6 +71,7 @@ func NewBot(
 func (b *Bot) Run(ctx context.Context) error {
 	slog.Debug("Bot started!")
 
+	runLoop:
 	for { // long polling
 		updates, err := b.fetcher.GetUpdates(ctx, updatesTimeout)
 		if err != nil {
@@ -86,12 +87,14 @@ func (b *Bot) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			break
+			break runLoop
 		default:
 		}
 	}
 
 	// TODO: отправить всем пользователям сообщение о остановки бота (+ запрос в БД)
+
+	return nil
 }
 
 // HandleUpdate обрабатывает одно обновление.
@@ -117,13 +120,22 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 		return b.handleAnswerUpdate(message.Chat.ID, message.From.ID, message.Text, runID)
 	}
 
-	text := strings.Fields(message.Text)
+	if message.Document != nil {
+		userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
+		if err != nil {
+			return err
+		}
 
-	if len(text[0]) < 1 {
-		_, err := b.sender.Message(message.Chat.ID, msgUnknownText, nil)
+		if *userRole == auth.RoleLecturer && message.Document != nil {
+			return b.handleDocumentUpdate(ctx, message)
+		} else if *userRole != auth.RoleLecturer && message.Document != nil {
+			_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
 
-		return err
+			return err
+		}
 	}
+
+	text := strings.Fields(message.Text)
 
 	if text[0][:1] == "/" {
 		// TODO: добавить все команды бота
@@ -154,20 +166,7 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 		return err
 	}
 
-	userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
-	if err != nil {
-		return err
-	}
-
-	if *userRole == auth.RoleLecturer && message.Document != nil {
-		return b.handleDocumentUpdate(ctx, message)
-	} else if *userRole != auth.RoleLecturer && message.Document != nil {
-		_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
-
-		return err
-	}
-
-	_, err = b.sender.Message(message.Chat.ID, msgUnknownText, nil)
+	_, err := b.sender.Message(message.Chat.ID, msgUnknownText, nil)
 
 	return err
 }
@@ -202,7 +201,7 @@ func (b *Bot) handleStartCommand(
 		}
 
 		opts := &client.SendOptions{ReplyMarkup: &keyboard}
-		_, err = b.sender.Message(message.Chat.ID, msgIdentification, opts)
+		_, err := b.sender.Message(message.Chat.ID, msgIdentification, opts)
 
 		return err
 	}
@@ -500,6 +499,20 @@ func (b *Bot) handleQuestionEvent(ctx context.Context, runID string, event engin
 	builder.WriteString(text)
 	builder.WriteString(event.Question.Text + "\n\n")
 
+	quiz := b.runIDToQuiz[runID]
+
+	shuffle := quiz.Settings.ShuffleAnswers
+	if event.Question.Shuffle != nil {
+		shuffle = *event.Question.Shuffle
+	}
+	
+	if shuffle {
+		err := b.engine.ShuffleAnswers(&event)
+		if err != nil {
+			return err
+		}
+	}
+
 	for i, option := range event.Question.Options {
 		letter := engine.IndexToLetter(i)
 		text = fmt.Sprintf("%s. %s", letter, option) + "\n"
@@ -512,7 +525,7 @@ func (b *Bot) handleQuestionEvent(ctx context.Context, runID string, event engin
 	if event.Question.Time > 0 {
 		questionTime = event.Question.Time
 	} else {
-		questionTime = b.runIDToQuiz[runID].Settings.TimePerQuestion
+		questionTime = quiz.Settings.TimePerQuestion
 	}
 
 	b.mu.Unlock()
@@ -568,10 +581,12 @@ func (b *Bot) handleEditUserMessage(
 	b.mu.Unlock()
 
 	lim := questionTime
+
+	Loop:
 	for range lim {
 		select {
 		case <-ctx.Done():
-			break
+			break Loop
 		case <-ticker.C:
 		}
 
@@ -636,7 +651,7 @@ func (b *Bot) handleFinishedEvent(runID string) error {
 
 	for userID, runIDForUser := range b.userIDToRunID {
 		if runIDForUser == runID {
-			endText := "Квиз %s окончен! Результаты:\n\nВаш результат: %d баллов (место %d)\n\n%s"
+			endText := "Квиз %s окончен!\n\nВаш результат: %d баллов (место %d)\n\n%s"
 			msg := fmt.Sprintf(
 				endText,
 				res.QuizTitle,

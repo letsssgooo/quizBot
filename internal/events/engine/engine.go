@@ -219,7 +219,7 @@ func (e *Engine) StartQuiz(ctx context.Context, runID string) (<-chan QuizEvent,
 }
 
 // ShuffleAnswers перемешивает порядок ответов на вопрос.
-func (e *Engine) ShuffleAnswers(runID string, event QuizEvent) error {
+func (e *Engine) ShuffleAnswers(event *QuizEvent) error {
 	if event.Type != EventTypeQuestion {
 		return ErrNoQuestionType
 	}
@@ -227,30 +227,17 @@ func (e *Engine) ShuffleAnswers(runID string, event QuizEvent) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	activeQuizRun, ok := e.activeQuizzesRun[runID]
-	if !ok {
-		return ErrNoRunLobby
-	}
-
-	quiz := e.quizzes[activeQuizRun.QuizID]
-
 	randGen := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	for k := range quiz.Questions {
-		options := quiz.Questions[k].Options
+	correctOption := event.Question.Options[event.Question.Correct]
+	randGen.Shuffle(len(event.Question.Options), func(i, j int) {
+		event.Question.Options[i], event.Question.Options[j] = event.Question.Options[j], event.Question.Options[i]
+	})
 
-		correctOption := options[quiz.Questions[k].Correct]
-		if quiz.Questions[k].Shuffle != nil && *quiz.Questions[k].Shuffle {
-			randGen.Shuffle(len(options), func(i, j int) {
-				quiz.Questions[k].Options[i], quiz.Questions[k].Options[j] = quiz.Questions[k].Options[j], quiz.Questions[k].Options[i]
-			})
-
-			for j, option := range options {
-				if option == correctOption {
-					quiz.Questions[k].Correct = j
-					break
-				}
-			}
+	for j, option := range event.Question.Options {
+		if option == correctOption {
+			event.Question.Correct = j
+			break
 		}
 	}
 

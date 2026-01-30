@@ -243,10 +243,6 @@ func (c *HTTPClient) SendDocument(
 
 	writer := multipart.NewWriter(&buf)
 
-	defer func() {
-		_ = writer.Close()
-	}()
-
 	err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10))
 	if err != nil {
 		return fmt.Errorf("failed to add chat_id field to multipart form: %w", err)
@@ -259,6 +255,11 @@ func (c *HTTPClient) SendDocument(
 
 	if _, err = multipartWriter.Write(data); err != nil {
 		return fmt.Errorf("failed to write data to multipart form: %w", err)
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close multipart form: %w", err)
 	}
 
 	url := fmt.Sprintf(apiURL, c.token, "sendDocument")
