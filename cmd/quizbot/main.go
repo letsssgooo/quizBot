@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/letsssgooo/quizBot/internal/auth"
 	"github.com/letsssgooo/quizBot/internal/bot"
 	"github.com/letsssgooo/quizBot/internal/client"
@@ -19,8 +20,6 @@ import (
 	"github.com/letsssgooo/quizBot/internal/storage/postgres"
 	"golang.org/x/sync/errgroup"
 )
-
-const dsn string = ""
 
 //func parseCLIArgs() (string, string, error) {
 //	flagToken := pflag.String("token", "", "token of telegram bot")
@@ -42,13 +41,26 @@ func main() {
 	logger := setupLogger()
 	slog.SetDefault(logger)
 
+	if err := godotenv.Load(); err != nil {
+		slog.Error("Cannot load environment variables", "error", err)
+	}
+
 	slog.Debug("Logger started with Debug level")
 	slog.Debug("Parsing tokens...")
 
 	rootCtx, cancelFunc := context.WithCancel(context.Background()) // graceful shutdown
 	g, gCtx := errgroup.WithContext(rootCtx)
 
-	token, botUsername := "", ""
+	token, ok := os.LookupEnv("BOT_TOKEN")
+	if !ok {
+		slog.Error("Cannot initialize token variable")
+	}
+
+	botUsername, ok := os.LookupEnv("BOT_USERNAME")
+	if !ok {
+		slog.Error("Cannot initialize botUsername variable")
+	}
+
 	//if err != nil {
 	//	slog.Error("Empty token or botUsername", "error", err)
 	//	os.Exit(1)
@@ -63,7 +75,14 @@ func main() {
 	telegramFetcher := fetcher.NewTelegramFetcher(gCtx, httpClient)
 	telegramSender := sender.NewTelegramSender(httpClient)
 
-	botStorage, err := postgres.NewStorage(gCtx, dsn)
+	dbURL, ok := os.LookupEnv("DB_CONN_URL")
+	if !ok {
+		slog.Error("Cannot initialize dbURL variable")
+	}
+
+	slog.Debug("Database URL", "url", dbURL)
+
+	botStorage, err := postgres.NewStorage(gCtx, dbURL)
 	if err != nil {
 		slog.Error("Cannot initialize database", "error", err)
 		os.Exit(1)
