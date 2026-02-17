@@ -48,4 +48,7 @@ type Storage interface {
 	//UpdateRun(ctx context.Context, run *engine.QuizRun) error
 }
 
-var ErrUserAlreadyExists = errors.New("user already exists")
+var (
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrQuizAlreadyExists = errors.New("quiz already exists")
+)

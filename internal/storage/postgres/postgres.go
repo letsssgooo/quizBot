@@ -87,3 +87,31 @@ func (s *Storage) CheckRole(ctx context.Context, user *models.UserModel) (*strin
 
 	return role, nil
 }
+
+// AddQuiz добавляет информацию о новом квизе в БД
+func (s *Storage) AddQuiz(ctx context.Context, quizInfo models.InfoModel) error {
+	query := `
+	INSERT INTO quizzes_info (name, file, creator) VALUES ($1, $2, $3) ON CONFLICT name DO NOTHING
+	`
+
+	cmtTag, err := s.pool.Exec(ctx, query, quizInfo.Name, quizInfo.File, quizInfo.AuthorUsername)
+	if cmtTag.RowsAffected() == 0 {
+		return storage.ErrQuizAlreadyExists
+	}
+
+	return err
+}
+
+// EditQuiz редактирует существующий квиз
+func (s *Storage) EditQuiz(
+	ctx context.Context,
+	requestUser *models.UserModel,
+	quizInfo models.InfoModel,
+) error {
+	query := `
+	UPDATE quizzes_info SET file = $1 WHERE name = $2
+	`
+
+	_, err := s.pool.Exec(ctx, query, quizInfo.File, quizInfo.Name)
+	return err
+}

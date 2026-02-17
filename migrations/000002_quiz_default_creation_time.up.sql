@@ -1,0 +1,2 @@
+ALTER TABLE quizzes_info
+ALTER COLUMN created_at SET DEFAULT NOW();
