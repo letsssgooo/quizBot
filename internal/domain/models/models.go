@@ -24,7 +24,7 @@ type InfoModel struct {
 	Name           string
 	File           []byte
 	CreatedAt      time.Time
-	AuthorUsername string
+	OwnerID int64
 }
 
 // StatisticModel определяет модель для таблицы с результатами квизов

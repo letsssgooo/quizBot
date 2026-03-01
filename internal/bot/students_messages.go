@@ -17,8 +17,6 @@ const msgStudentsRole = `Дождитесь от преподавателя сс
 
 const msgStudentsSuccessfullVerification = `Вы успешно зарегистрированы в роли студента 👍!` + "\n\n" + msgStudentsRole
 
-const msgUnknownQuiz = `Квиз не найден 😔.`
-
 const msgClosedLobby = `Лобби уже закрыто 🙁.`
 
 const msgMaxParticipantNumber = `К сожалению, в лобби больше нет мест 🙁`

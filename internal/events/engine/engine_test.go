@@ -262,7 +262,7 @@ func TestQuizFlow_SingleParticipant(t *testing.T) {
 	assert.Equal(t, 0, event.QuestionIdx)
 
 	// Отвечаем на первый вопрос (правильно)
-	err = engine.SubmitAnswer(ctx, run.ID, 12345, 0, 0)
+	err = engine.SubmitAnswer(run.ID, 12345, 0, 0)
 	require.NoError(t, err)
 
 	// Получаем второй вопрос
@@ -271,7 +271,7 @@ func TestQuizFlow_SingleParticipant(t *testing.T) {
 	assert.Equal(t, 1, event.QuestionIdx)
 
 	// Отвечаем на второй вопрос (неправильно)
-	err = engine.SubmitAnswer(ctx, run.ID, 12345, 1, 0)
+	err = engine.SubmitAnswer(run.ID, 12345, 1, 0)
 	require.NoError(t, err)
 
 	// Квиз завершён
@@ -325,11 +325,11 @@ func TestQuizFlow_MultipleParticipants(t *testing.T) {
 	<-events // первый вопрос
 
 	// Все отвечают
-	err = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0) // правильно
+	err = engine.SubmitAnswer(run.ID, 1, 0, 0) // правильно
 	require.NoError(t, err)
-	err = engine.SubmitAnswer(ctx, run.ID, 2, 0, 1) // неправильно
+	err = engine.SubmitAnswer(run.ID, 2, 0, 1) // неправильно
 	require.NoError(t, err)
-	err = engine.SubmitAnswer(ctx, run.ID, 3, 0, 0) // правильно
+	err = engine.SubmitAnswer(run.ID, 3, 0, 0) // правильно
 	require.NoError(t, err)
 
 	<-events // finished
@@ -390,7 +390,7 @@ func TestQuestionTimer_Expires(t *testing.T) {
 	assert.Equal(t, 1, event.QuestionIdx)
 
 	// Отвечаем на второй
-	err = engine.SubmitAnswer(ctx, run.ID, 1, 1, 0)
+	err = engine.SubmitAnswer(run.ID, 1, 1, 0)
 	require.NoError(t, err)
 
 	// Квиз завершён
@@ -443,23 +443,23 @@ func TestLeaderboard_Sorting(t *testing.T) {
 	// Q1
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 1) // неправильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 2, 0, 0) // правильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 3, 0, 0) // правильно
+	_ = engine.SubmitAnswer(run.ID, 1, 0, 1) // неправильно
+	_ = engine.SubmitAnswer(run.ID, 2, 0, 0) // правильно
+	_ = engine.SubmitAnswer(run.ID, 3, 0, 0) // правильно
 
 	// Q2
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 1, 1) // неправильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 2, 1, 0) // правильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 3, 1, 1) // неправильно
+	_ = engine.SubmitAnswer(run.ID, 1, 1, 1) // неправильно
+	_ = engine.SubmitAnswer(run.ID, 2, 1, 0) // правильно
+	_ = engine.SubmitAnswer(run.ID, 3, 1, 1) // неправильно
 
 	// Q3
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 2, 1) // неправильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 2, 2, 0) // правильно
-	_ = engine.SubmitAnswer(ctx, run.ID, 3, 2, 1) // неправильно
+	_ = engine.SubmitAnswer(run.ID, 1, 2, 1) // неправильно
+	_ = engine.SubmitAnswer(run.ID, 2, 2, 0) // правильно
+	_ = engine.SubmitAnswer(run.ID, 3, 2, 1) // неправильно
 
 	<-events // finished
 
@@ -519,11 +519,11 @@ func TestLeaderboard_SameScore_SortByTime(t *testing.T) {
 	<-events
 
 	// fast отвечает первым
-	_ = engine.SubmitAnswer(ctx, run.ID, 2, 0, 0)
+	_ = engine.SubmitAnswer(run.ID, 2, 0, 0)
 
 	time.Sleep(10 * time.Millisecond)
 	// slow отвечает вторым
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+	_ = engine.SubmitAnswer(run.ID, 1, 0, 0)
 
 	<-events // finished
 
@@ -572,7 +572,7 @@ func TestExportCSV_Format(t *testing.T) {
 
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+	_ = engine.SubmitAnswer(run.ID, 1, 0, 0)
 
 	<-events
 
@@ -631,7 +631,7 @@ func TestExportCSV_UTF8(t *testing.T) {
 
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+	_ = engine.SubmitAnswer(run.ID, 1, 0, 0)
 
 	<-events
 
@@ -702,7 +702,7 @@ func TestSubmitAnswer_InvalidQuestionIdx(t *testing.T) {
 	<-events
 
 	// Неверный индекс вопроса
-	err = engine.SubmitAnswer(ctx, run.ID, 1, 5, 0)
+	err = engine.SubmitAnswer(run.ID, 1, 5, 0)
 	assert.Error(t, err)
 }
 
@@ -736,7 +736,7 @@ func TestSubmitAnswer_InvalidAnswerIdx(t *testing.T) {
 	<-events
 
 	// Неверный индекс ответа
-	err = engine.SubmitAnswer(ctx, run.ID, 1, 0, 10)
+	err = engine.SubmitAnswer(run.ID, 1, 0, 10)
 	assert.Error(t, err)
 }
 
@@ -783,7 +783,7 @@ func TestStartQuiz_NotInLobby(t *testing.T) {
 	// Завершаем квиз
 	<-events
 
-	_ = engine.SubmitAnswer(ctx, run.ID, 1, 0, 0)
+	_ = engine.SubmitAnswer(run.ID, 1, 0, 0)
 
 	<-events
 }
@@ -824,7 +824,7 @@ func TestSubmitAnswerByLetter_Basic(t *testing.T) {
 	assert.Equal(t, EventTypeQuestion, event.Type)
 
 	// Отвечаем буквой C (индекс 2 = правильный ответ)
-	err = engine.SubmitAnswerByLetter(ctx, run.ID, 1, "C")
+	err = engine.SubmitAnswerByLetter(run.ID, 1, "C")
 	require.NoError(t, err)
 
 	<-events // finished
@@ -874,14 +874,14 @@ func TestQuizWithTextAnswers_FullFlow(t *testing.T) {
 	// Q1
 	<-events
 
-	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 1, "B") // правильно
-	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 2, "A") // неправильно
+	_ = engine.SubmitAnswerByLetter(run.ID, 1, "B") // правильно
+	_ = engine.SubmitAnswerByLetter(run.ID, 2, "A") // неправильно
 
 	// Q2
 	<-events
 
-	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 1, "A") // правильно
-	_ = engine.SubmitAnswerByLetter(ctx, run.ID, 2, "A") // правильно
+	_ = engine.SubmitAnswerByLetter(run.ID, 1, "A") // правильно
+	_ = engine.SubmitAnswerByLetter(run.ID, 2, "A") // правильно
 
 	<-events // finished
 

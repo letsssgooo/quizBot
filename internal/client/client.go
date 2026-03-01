@@ -203,6 +203,7 @@ func (c *HTTPClient) DownloadFile(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -269,9 +270,11 @@ func (c *HTTPClient) SendDocument(
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
+
 	if err != nil {
 		return err
 	}
+
 	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("failed to do post request for url %s: %w", url, err)
@@ -317,9 +320,11 @@ func (c *HTTPClient) doRequest(
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
+
 	if err != nil {
 		return nil, err
 	}
+
 	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, err

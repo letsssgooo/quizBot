@@ -48,7 +48,7 @@ func main() {
 	slog.Debug("Logger started with Debug level")
 	slog.Debug("Parsing tokens...")
 
-	rootCtx, cancelFunc := context.WithCancel(context.Background()) // graceful shutdown
+	rootCtx, cancelFunc := context.WithCancel(context.Background()) // graceful shutdownF
 	g, gCtx := errgroup.WithContext(rootCtx)
 
 	token, ok := os.LookupEnv("BOT_TOKEN")
@@ -109,6 +109,7 @@ func main() {
 	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM)
 
 	done := make(chan error, 1)
+
 	go func() {
 		done <- g.Wait()
 	}()

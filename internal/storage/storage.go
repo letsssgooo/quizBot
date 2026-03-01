@@ -23,7 +23,29 @@ type Storage interface {
 	// CheckRole возвращает роль у существующего пользователя. Возвращает nil, если роли нет.
 	CheckRole(ctx context.Context, user *models.UserModel) (*string, error)
 
-	//// SaveQuiz сохраняет квиз.
+	// CheckQuizExistence проверяет существования квиза
+	CheckQuizExistence(
+		ctx context.Context,
+		quizInfo *models.InfoModel,
+		user *models.UserModel,
+	) bool
+
+	// UpdateQuizInfo обвновляет информацию о новом квизе в БД
+	UpdateQuizInfo(ctx context.Context, quizInfo models.InfoModel) error
+
+	// GetQuizInfo возвращает информацию о квизе по его названию и ID владельца
+	GetQuizInfo(
+		ctx context.Context,
+		quizInfo models.InfoModel,
+	) ([]byte, error)
+
+	// GetQuizzesNames возвращает список названий квизов, созданных пользователем
+	GetQuizzesNames(
+		ctx context.Context,
+		quizInfo models.InfoModel,
+	) ([]string, error)
+
+//// SaveQuiz сохраняет квиз.
 	//SaveQuiz(ctx context.Context, q *engine.Quiz) error
 	//
 	//// GetQuiz возвращает квиз по ID.
@@ -50,5 +72,5 @@ type Storage interface {
 
 var (
 	ErrUserAlreadyExists = errors.New("user already exists")
-	ErrQuizAlreadyExists = errors.New("quiz already exists")
+	ErrIncorrectOwner = errors.New("not the owner of the quiz")
 )

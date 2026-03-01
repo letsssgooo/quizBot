@@ -5,19 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/letsssgooo/quizBot/internal/auth"
 	"github.com/letsssgooo/quizBot/internal/client"
+	"github.com/letsssgooo/quizBot/internal/domain/models"
 	"github.com/letsssgooo/quizBot/internal/events/engine"
 	"github.com/letsssgooo/quizBot/internal/events/fetcher"
 	"github.com/letsssgooo/quizBot/internal/events/sender"
 	"github.com/letsssgooo/quizBot/internal/storage"
 )
 
-const updatesTimeout = 30
+const (
+	updatesTimeout = 30
+	dbQueryTimeout = 500 * time.Millisecond
+)
 
 // Bot реализует Telegram бота для квизов.
 type Bot struct {
@@ -71,7 +76,7 @@ func NewBot(
 func (b *Bot) Run(ctx context.Context) error {
 	slog.Debug("Bot started!")
 
-	runLoop:
+runLoop:
 	for { // long polling
 		updates, err := b.fetcher.GetUpdates(ctx, updatesTimeout)
 		if err != nil {
@@ -127,7 +132,7 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 		}
 
 		if *userRole == auth.RoleLecturer && message.Document != nil {
-			return b.handleDocumentUpdate(ctx, message)
+			return b.handleDocumentUpdate(message)
 		} else if *userRole != auth.RoleLecturer && message.Document != nil {
 			_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
 
@@ -144,6 +149,8 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 			return b.handleStartCommand(ctx, message, text)
 		case "/help":
 			return b.handleHelpCommand(message)
+		case "/load_quiz":
+			return b.handleQuizStart(ctx, strings.Join(text[1:], " "), message)
 		default:
 			_, err := b.sender.Message(message.Chat.ID, msgUnknownCommand, nil)
 
@@ -317,7 +324,7 @@ func (b *Bot) handleAnswerUpdate(
 }
 
 // handleDocumentUpdate обрабатывает присланный преподавателем JSON файл.
-func (b *Bot) handleDocumentUpdate(ctx context.Context, message *client.Message) error {
+func (b *Bot) handleDocumentUpdate(message *client.Message) error {
 	filePath, err := b.client.GetFile(message.Document.FileID)
 	if err != nil {
 		return err
@@ -328,18 +335,63 @@ func (b *Bot) handleDocumentUpdate(ctx context.Context, message *client.Message)
 		return nil
 	}
 
+	slog.Debug("File downloaded", "filePath", filePath, "fileSize", len(data))
+
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
 	quiz, err := b.engine.LoadQuiz(data)
 	if err != nil {
 		return err
 	}
 
 	quiz.OwnerID = message.From.ID
-	quiz.CreatedAt = time.Now()
+
+	quizName := strings.Join(strings.Fields(quiz.Title), " ")
+
+	err = b.storage.UpdateQuizInfo(dbCtx, models.InfoModel{
+		Name:    strings.Join([]string{quizName, strconv.FormatInt(message.From.ID, 10)}, "_"),
+		File:    data,
+		OwnerID: quiz.OwnerID,
+	})
+
+	slog.Debug("Quiz info updated in database", "quizTitle", quiz.Title, "ownerID", quiz.OwnerID)
+
+	return err
+}
+
+// handleQuizStart обрабатывает нажатие преподавателем кнопки "Начать квиз" и запускает квиз.
+func (b *Bot) handleQuizStart(ctx context.Context, quizName string, message *client.Message) error {
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	info, err := b.storage.GetQuizInfo(dbCtx, models.InfoModel{
+		Name:    strings.Join([]string{quizName, strconv.FormatInt(message.From.ID, 10)}, "_"),
+		OwnerID: message.From.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	slog.Debug(
+		"Quiz info retrieved from database",
+		"quizName",
+		quizName,
+		"ownerID",
+		message.From.ID,
+	)
+
+	quiz, err := b.engine.LoadQuiz(info)
+	if err != nil {
+		return err
+	}
 
 	activeQuizRun, err := b.engine.StartRun(ctx, quiz)
 	if err != nil {
 		return err
 	}
+
+	slog.Debug("Quiz run started", "quizTitle", quiz.Title, "runID", activeQuizRun.ID)
 
 	b.mu.Lock()
 	b.runIDToQuiz[activeQuizRun.ID] = quiz
@@ -505,7 +557,7 @@ func (b *Bot) handleQuestionEvent(ctx context.Context, runID string, event engin
 	if event.Question.Shuffle != nil {
 		shuffle = *event.Question.Shuffle
 	}
-	
+
 	if shuffle {
 		err := b.engine.ShuffleAnswers(&event)
 		if err != nil {
@@ -582,14 +634,13 @@ func (b *Bot) handleEditUserMessage(
 
 	lim := questionTime
 
-	Loop:
+Loop:
 	for range lim {
 		select {
 		case <-ctx.Done():
 			break Loop
 		case <-ticker.C:
 		}
-
 
 		questionTime--
 

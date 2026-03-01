@@ -13,7 +13,6 @@ type Quiz struct {
 	Title     string
 	Settings  Settings
 	Questions []Question
-	CreatedAt time.Time
 }
 
 // Settings содержит настройки квиза.
