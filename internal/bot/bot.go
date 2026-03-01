@@ -151,6 +151,8 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 			return b.handleHelpCommand(message)
 		case "/load_quiz":
 			return b.handleQuizStart(ctx, strings.Join(text[1:], " "), message)
+		case "/get":
+			return b.GetQuizzesNames(message)
 		default:
 			_, err := b.sender.Message(message.Chat.ID, msgUnknownCommand, nil)
 
@@ -168,7 +170,7 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 			return err
 		}
 
-		_, err = b.sender.Message(message.Chat.ID, msgStudentsSuccessfullVerification, nil)
+		_, err = b.sender.Message(message.Chat.ID, msgStudentsSuccessfulVerification, nil)
 
 		return err
 	}
@@ -222,7 +224,6 @@ func (b *Bot) handleStartCommand(
 // handleStudentsJoin присоединяет студента к квизу.
 func (b *Bot) handleStudentsJoin(ctx context.Context, message *client.Message, runID string) error {
 	b.mu.Lock()
-
 	run, err := b.engine.GetRun(runID)
 	b.mu.Unlock()
 
@@ -349,7 +350,9 @@ func (b *Bot) handleDocumentUpdate(message *client.Message) error {
 
 	quizName := strings.Join(strings.Fields(quiz.Title), " ")
 
-	err = b.storage.UpdateQuizInfo(dbCtx, models.InfoModel{
+	slog.Debug("QuizName for database", "quizName", quizName)
+
+	err = b.storage.UpdateQuizInfo(dbCtx, &models.InfoModel{
 		Name:    strings.Join([]string{quizName, strconv.FormatInt(message.From.ID, 10)}, "_"),
 		File:    data,
 		OwnerID: quiz.OwnerID,
@@ -360,12 +363,45 @@ func (b *Bot) handleDocumentUpdate(message *client.Message) error {
 	return err
 }
 
-// handleQuizStart обрабатывает нажатие преподавателем кнопки "Начать квиз" и запускает квиз.
-func (b *Bot) handleQuizStart(ctx context.Context, quizName string, message *client.Message) error {
+// GetQuizzesNames возвращает список названий квизов
+func (b *Bot) GetQuizzesNames(message *client.Message) error {
 	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
 	defer cancelFunc()
 
-	info, err := b.storage.GetQuizInfo(dbCtx, models.InfoModel{
+	names, err := b.storage.GetQuizzesNames(dbCtx, &models.InfoModel{
+		OwnerID: message.From.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	var sb strings.Builder
+	for i, name := range names {
+		name = strings.Split(name, "_")[0]
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, name))
+	}
+
+	_, err = b.sender.Message(message.Chat.ID, sb.String(), nil)
+
+	return err
+}
+
+// handleQuizStart обрабатывает нажатие преподавателем кнопки "Начать квиз" и запускает квиз.
+func (b *Bot) handleQuizStart(ctx context.Context, quizName string, message *client.Message) error {
+	userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
+	if err != nil {
+		return err
+	}
+
+	if *userRole != auth.RoleLecturer {
+		_, err = b.sender.Message(message.Chat.ID, msgNoRights, nil)
+		return err
+	}
+
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	info, err := b.storage.GetQuizInfo(dbCtx, &models.InfoModel{
 		Name:    strings.Join([]string{quizName, strconv.FormatInt(message.From.ID, 10)}, "_"),
 		OwnerID: message.From.ID,
 	})

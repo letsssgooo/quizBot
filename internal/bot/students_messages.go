@@ -15,7 +15,7 @@ const msgStudentsDataMistake = `Некорректные данные.
 
 const msgStudentsRole = `Дождитесь от преподавателя ссылку на лобби, затем перейдите по ней и отвечайте на вопросы.`
 
-const msgStudentsSuccessfullVerification = `Вы успешно зарегистрированы в роли студента 👍!` + "\n\n" + msgStudentsRole
+const msgStudentsSuccessfulVerification = `Вы успешно зарегистрированы в роли студента 👍!` + "\n\n" + msgStudentsRole
 
 const msgClosedLobby = `Лобби уже закрыто 🙁.`
 

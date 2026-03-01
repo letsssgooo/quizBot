@@ -31,18 +31,18 @@ type Storage interface {
 	) bool
 
 	// UpdateQuizInfo обвновляет информацию о новом квизе в БД
-	UpdateQuizInfo(ctx context.Context, quizInfo models.InfoModel) error
+	UpdateQuizInfo(ctx context.Context, quizInfo *models.InfoModel) error
 
 	// GetQuizInfo возвращает информацию о квизе по его названию и ID владельца
 	GetQuizInfo(
 		ctx context.Context,
-		quizInfo models.InfoModel,
+		quizInfo *models.InfoModel,
 	) ([]byte, error)
 
 	// GetQuizzesNames возвращает список названий квизов, созданных пользователем
 	GetQuizzesNames(
 		ctx context.Context,
-		quizInfo models.InfoModel,
+		quizInfo *models.InfoModel,
 	) ([]string, error)
 
 //// SaveQuiz сохраняет квиз.

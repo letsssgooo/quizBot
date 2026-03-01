@@ -107,7 +107,7 @@ func (s *Storage) CheckQuizExistence(
 }
 
 // UpdateQuizInfo обновляет информацию о новом квизе в БД
-func (s *Storage) UpdateQuizInfo(ctx context.Context, quizInfo models.InfoModel) error {
+func (s *Storage) UpdateQuizInfo(ctx context.Context, quizInfo *models.InfoModel) error {
 	queryUpdate := `
     UPDATE quizzes_info
     SET file = $1
@@ -148,7 +148,7 @@ func (s *Storage) UpdateQuizInfo(ctx context.Context, quizInfo models.InfoModel)
 // GetQuizInfo возвращает информацию (файл) о квизе по названию и ID владельца
 func (s *Storage) GetQuizInfo(
 	ctx context.Context,
-	quizInfo models.InfoModel,
+	quizInfo *models.InfoModel,
 ) ([]byte, error) {
 	query := `
 	SELECT file FROM quizzes_info WHERE name = $1 AND owner_id = $2;
@@ -167,7 +167,7 @@ func (s *Storage) GetQuizInfo(
 // GetQuizzesNames возвращает список названий квизов, созданных пользователем
 func (s *Storage) GetQuizzesNames(
 	ctx context.Context,
-	quizInfo models.InfoModel,
+	quizInfo *models.InfoModel,
 ) ([]string, error) {
 	query := `
 	SELECT name FROM quizzes_info WHERE owner_id = $1;
