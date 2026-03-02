@@ -31,10 +31,9 @@ type InfoModel struct {
 type StatisticModel struct {
 	ID        int
 	QuizID    int
-	Username  string
-	Questions []string
-	Options   []string
+	StudentID  int
 	Answers   []string
-	Points    int
-	MaxPoints int
+	Score    int
+	StartedAt time.Time
+	FinishedAt time.Time
 }

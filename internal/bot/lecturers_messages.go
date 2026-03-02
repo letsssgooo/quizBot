@@ -15,5 +15,3 @@ const msgLecturersHelp = `Я - телеграм бот для проведени
 const msgLecturersSuccessfullVerification = `Вы успешно зарегистрированы в роли преподавателя 👍!`
 
 const msgQuizRunning = `Квиз запускается 👍!`
-
-const msgAddQuizFile = `Квиз найден! Отправьте новый файл в формате JSON для обновления данных квиза.`

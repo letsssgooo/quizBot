@@ -386,7 +386,7 @@ func (b *Bot) GetQuizzesNames(message *client.Message) error {
 	return err
 }
 
-// handleQuizStart обрабатывает нажатие преподавателем кнопки "Начать квиз" и запускает квиз.
+// handleQuizStart обрабатывает команду для добавления квиза в статус `лобби`.
 func (b *Bot) handleQuizStart(ctx context.Context, quizName string, message *client.Message) error {
 	userRole, err := b.auth.CheckRole(b.storage, message.From.ID)
 	if err != nil {

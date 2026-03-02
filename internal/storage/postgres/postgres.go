@@ -51,6 +51,22 @@ func (s *Storage) CreateUser(ctx context.Context, user *models.UserModel) error 
 	return err
 }
 
+// GetUserID возвращает ID пользователя по его TelegramID. Возвращает 0, если пользователя нет в БД.
+func (s *Storage) GetUserID(ctx context.Context, user *models.UserModel) (int, error) {
+	query := `
+	SELECT id FROM users WHERE telegram_id = $1;
+	`
+
+	var id int
+
+	err := s.pool.QueryRow(ctx, query, user.TelegramID).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
 // UpdateStudentData обновляет данные о студенте в БД
 func (s *Storage) UpdateStudentData(ctx context.Context, user *models.UserModel) error {
 	query := `
@@ -184,4 +200,139 @@ func (s *Storage) GetQuizzesNames(
 	}
 
 	return quizzesNames, nil
+}
+
+// DeleteQuiz удаляет квиз из БД по названию и ID владельца. Возвращает storage.ErrQuizNotFound, если квиза нет в БД.
+func (s *Storage) DeleteQuiz(ctx context.Context, quizInfo *models.InfoModel) error {
+	query := `
+	DELETE FROM quizzes_info WHERE name = $1 AND owner_id = $2;
+	`
+
+	cmdTag, err := s.pool.Exec(ctx, query, quizInfo.Name, quizInfo.OwnerID)
+	if err != nil {
+		return err
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return storage.ErrQuizNotFound
+	}
+
+	return nil
+}
+
+// GetQuizID возвращает ID квиза по названию и ID владельца. Возвращает 0, если квиза нет в БД.
+func (s *Storage) GetQuizID(ctx context.Context, quizInfo *models.InfoModel) (int, error) {
+	query := `
+	SELECT id FROM quizzes_info WHERE name = $1 AND owner_id = $2;
+	`
+
+	var id int
+
+	err := s.pool.QueryRow(ctx, query, quizInfo.Name, quizInfo.OwnerID).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+// SaveRun сохраняет запуск квиза в БД. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
+func (s *Storage) SaveRun(ctx context.Context, statistic *models.StatisticModel) error {
+	query := `
+	INSERT INTO quizzes_statistic (quiz_id, student_id, started_at) VALUES ($1, $2, $3);
+	`
+
+	cmdTag, err := s.pool.Exec(ctx,
+		query,
+		statistic.QuizID,
+		statistic.StudentID,
+		statistic.StartedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return storage.ErrStatisticAlreadyExists
+	}
+
+	return nil
+}
+
+// UpdateRun обновляет данные запуска квиза в БД. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
+func (s *Storage) UpdateRun(ctx context.Context, statistic *models.StatisticModel) error {
+	query := `
+	UPDATE quizzes_statistic
+	SET answers = $1, score = $2, finished_at = $3
+	WHERE quiz_id = $4 AND student_id = $5;
+	`
+
+	cmdTag, err := s.pool.Exec(
+		ctx,
+		query,
+		statistic.Answers,
+		statistic.Score,
+		statistic.FinishedAt,
+		statistic.QuizID,
+		statistic.StudentID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return storage.ErrQuizNotFound
+	}
+
+	return nil
+}
+
+// GetRun возвращает запуск по ID. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
+func (s *Storage) GetRun(ctx context.Context, id int) (*models.StatisticModel, error) {
+	query := `
+	SELECT quiz_id, student_id, answers, score, started_at, finished_at
+	FROM quizzes_statistic
+	WHERE id = $1;
+	`
+
+	var statistic models.StatisticModel
+
+	err := s.pool.QueryRow(ctx, query, id).Scan(
+		&statistic.QuizID,
+		&statistic.StudentID,
+		&statistic.Answers,
+		&statistic.Score,
+		&statistic.StartedAt,
+		&statistic.FinishedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &statistic, nil
+}
+
+// GetRunsStatistic возвращает список со статистикой запусков квиза по названию квиза
+func (s *Storage) GetRunsStatistic(
+	ctx context.Context,
+	quizInfo *models.InfoModel,
+) ([]*models.StatisticModel, error) {
+	query := `
+	SELECT id, quiz_id, student_id, answers, score, started_at, finished_at
+	FROM quizzes_statistic qs
+	JOIN quizzes_info qi ON qs.quiz_id = qi.id
+	WHERE qi.name = $1;
+	`
+
+	rows, err := s.pool.Query(ctx, query, quizInfo.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	statistics, err := pgx.CollectRows(rows, pgx.RowTo[*models.StatisticModel])
+	if err != nil {
+		return nil, err
+	}
+
+	return statistics, nil
 }

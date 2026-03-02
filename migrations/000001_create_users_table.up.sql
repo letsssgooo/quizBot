@@ -20,9 +20,10 @@ CREATE TABLE IF NOT EXISTS quizzes_info (
 -- Создание таблицы со статистикой квизов
 CREATE TABLE IF NOT EXISTS quizzes_statistic (
     id SERIAL PRIMARY KEY,
-    quizID INTEGER NOT NULL REFERENCES quizzes_info(id), -- для связи с таблицей info
-    answers VARCHAR(1)[] NOT NULL,
-    score INTEGER NOT NULL,
+    quiz_id INTEGER NOT NULL REFERENCES quizzes_info(id), -- для связи с таблицей info
+    student_id INTEGER NOT NULL REFERENCES users(id),
+    answers VARCHAR(1)[],
+    score INTEGER,
     started_at TIMESTAMP NOT NULL,
-    finished_at TIMESTAMP NOT NULL
+    finished_at TIMESTAMP
 );
