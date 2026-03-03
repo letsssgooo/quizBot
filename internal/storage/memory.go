@@ -6,6 +6,10 @@ import (
 	"github.com/letsssgooo/quizBot/internal/events/engine"
 )
 
+type Cache interface {
+
+}
+
 // MemoryStorage реализует Storage в памяти.
 type MemoryStorage struct {
 	// TODO: добавьте необходимые поля

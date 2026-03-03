@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"github.com/letsssgooo/quizBot/internal/events/sender"
 	"github.com/letsssgooo/quizBot/internal/lib/slogcustom"
 	"github.com/letsssgooo/quizBot/internal/storage/postgres"
+	"github.com/letsssgooo/quizBot/internal/storage/rdb"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -88,6 +90,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	botCache, err := rdb.NewClient(gCtx, rdb.Config{
+		Addr:        fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
+		Password:    os.Getenv("REDIS_PASSWORD"),
+		User:        os.Getenv("REDIS_USER"),
+		DB:          0,
+		MaxRetries:  5,
+		DialTimeout: 10 * time.Second,
+		Timeout:     5 * time.Second,
+	})
+	if err != nil {
+		slog.Error("Cannot initialize cache client", "error", err)
+		os.Exit(1)
+	}
+
 	telegramBot := bot.NewBot(
 		httpClient,
 		botAuth,
@@ -95,6 +111,7 @@ func main() {
 		telegramSender,
 		quizEngine,
 		botStorage,
+		botCache,
 		botUsername,
 	)
 

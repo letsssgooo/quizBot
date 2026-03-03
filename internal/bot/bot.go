@@ -32,6 +32,7 @@ type Bot struct {
 	sender              sender.Sender
 	engine              engine.QuizEngine
 	storage             storage.Storage
+	cache               storage.Cache
 	botUsername         string // Username бота для формирования ссылок (например, "my_quiz_bot")
 	userIDToRunID       map[int64]string
 	runIDToLobbyEndChan map[string]chan struct{}
@@ -53,6 +54,7 @@ func NewBot(
 	sender sender.Sender,
 	quizEngine engine.QuizEngine,
 	storage storage.Storage,
+	cache storage.Cache,
 	botUsername string,
 ) *Bot {
 	return &Bot{
@@ -62,6 +64,7 @@ func NewBot(
 		sender:              sender,
 		engine:              quizEngine,
 		storage:             storage,
+		cache:               cache,
 		botUsername:         botUsername,
 		userIDToRunID:       make(map[int64]string),
 		runIDToLobbyEndChan: make(map[string]chan struct{}),

@@ -17,13 +17,18 @@ CREATE TABLE IF NOT EXISTS quizzes_info (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS runs_history (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(250) NOT NULL UNIQUE,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP
+)
+
 -- Создание таблицы со статистикой квизов
 CREATE TABLE IF NOT EXISTS quizzes_statistic (
     id SERIAL PRIMARY KEY,
     quiz_id INTEGER NOT NULL REFERENCES quizzes_info(id), -- для связи с таблицей info
-    student_id INTEGER NOT NULL REFERENCES users(id),
-    answers VARCHAR(1)[],
-    score INTEGER,
-    started_at TIMESTAMP NOT NULL,
-    finished_at TIMESTAMP
+    student_id INTEGER NOT NULL REFERENCES users(id), -- для связи с таблицей users
+    run_id INTEGER NOT NULL REFERENCES runs_history(id), -- для связи с таблицей runs_history
+    score INTEGER
 );
