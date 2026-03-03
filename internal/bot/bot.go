@@ -151,8 +151,12 @@ func (b *Bot) handleMessageUpdate(ctx context.Context, message *client.Message) 
 			return b.handleHelpCommand(message)
 		case "/load_quiz":
 			return b.handleQuizStart(ctx, strings.Join(text[1:], " "), message)
-		case "/get":
+		case "/get_quiz":
 			return b.GetQuizzesNames(message)
+		case "/get_history":
+			return b.GetQuizHistory(message, text[1])
+		case "/get_file":
+			return b.GetQuizFile(message, text[1])
 		default:
 			_, err := b.sender.Message(message.Chat.ID, msgUnknownCommand, nil)
 
@@ -384,6 +388,69 @@ func (b *Bot) GetQuizzesNames(message *client.Message) error {
 	_, err = b.sender.Message(message.Chat.ID, sb.String(), nil)
 
 	return err
+}
+
+// GetQuizHistory возвращает статистику квиза по его названию
+func (b *Bot) GetQuizHistory(message *client.Message, name string) error {
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	statistics, err := b.storage.GetRunsStatistic(dbCtx, &models.InfoModel{
+		Name: name,
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(statistics) == 0 {
+		_, err = b.sender.Message(message.Chat.ID, msgNoQuizInfo, nil)
+
+		return err
+	}
+
+	startedAt := statistics[0].StartedAt
+	finishedAt := statistics[0].FinishedAt
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Квиз `%s`\n", name))
+	sb.WriteString(fmt.Sprintf("Начался %s\n", startedAt.Format("01.01.2026 00:00:00")))
+	sb.WriteString(fmt.Sprintf("Закончился %s\n", finishedAt.Format("01.01.2026 00:00:00")))
+	sb.WriteString("Студент: количество очков\n")
+
+	for i, statistic := range statistics {
+		sb.WriteString(fmt.Sprintf("%d. %d: %d\n", i + 1, statistic.StudentID, statistic.Score))
+	}
+
+	_, err = b.sender.Message(message.Chat.ID, sb.String(), nil)
+
+	return err
+}
+
+// GetQuizFile возвращает JSON файл по названию квиза.
+func (b *Bot) GetQuizFile(message *client.Message, name string) error {
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	b.mu.Lock()
+	runID, _ := b.userIDToRunID[message.From.ID]
+	b.mu.Unlock()
+
+	ownerID := b.runIDToOwnerChatID[runID]
+	if ownerID != message.Chat.ID {
+		_, err := b.sender.Message(message.Chat.ID, msgNoRights, nil)
+
+		return err
+	}
+
+	data, err := b.storage.GetQuizInfo(dbCtx, &models.InfoModel{
+		Name: name,
+		OwnerID: b.runIDToOwnerChatID[runID],
+	})
+	if err != nil {
+		return err
+	}
+
+	return b.sender.Document(ownerID, "Квиз", data)
 }
 
 // handleQuizStart обрабатывает команду для добавления квиза в статус `лобби`.
