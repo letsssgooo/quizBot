@@ -342,8 +342,8 @@ func (e *Engine) GetResults(runID string) (*QuizResults, error) {
 	defer e.mu.Unlock()
 
 	activeQuizRun, ok := e.activeQuizzesRun[runID]
-	if !ok || activeQuizRun.Status != RunStatusFinished {
-		return nil, fmt.Errorf("events %s is not finished", runID)
+	if !ok {
+		return nil, fmt.Errorf("activeQuizRun %s is not found", runID)
 	}
 
 	results := &QuizResults{

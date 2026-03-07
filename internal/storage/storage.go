@@ -54,25 +54,29 @@ type Storage interface {
 	// GetQuizID возвращает ID квиза по названию и ID владельца. Возвращает 0, если квиза нет в БД.
 	GetQuizID(ctx context.Context, quizInfo *models.InfoModel) (int, error)
 
-	// SaveRun сохраняет запуск квиза в БД. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
-	SaveRun(ctx context.Context, statistic *models.StatisticModel) error
+	// SetRun сохраняет запуск квиза в БД и возвращает ID запуска. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
+	SetRun(ctx context.Context, run *models.HistoryModel) (int, error)
 
-	// UpdateRun обновляет данные запуска квиза в БД. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
-	UpdateRun(ctx context.Context, statistic *models.StatisticModel) error
-
-	// GetRun возвращает запуск по ID. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
-	GetRun(ctx context.Context, id int) (*models.StatisticModel, error)
+	// GetRuns возвращает запуск по ID. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
+	GetRuns(ctx context.Context, name string) ([]*models.HistoryModel, error)
 
 	// GetRunsStatistic возвращает список со статистикой запусков квиза по названию квиза
 	GetRunsStatistic(
 		ctx context.Context,
-		quizInfo *models.InfoModel,
+		user *models.UserModel,
 	) ([]*models.StatisticModel, error)
+
+	// SaveRunStatistic сохраняет статистику запуска квиза в БД. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
+	SaveRunStatistic(
+		ctx context.Context,
+		statistic *models.StatisticModel,
+		scores map[int]int,
+	) error
 }
 
 var (
-	ErrUserAlreadyExists = errors.New("user already exists")
-	ErrIncorrectOwner = errors.New("not the owner of the quiz")
-	ErrQuizNotFound = errors.New("quiz not found")
+	ErrUserAlreadyExists      = errors.New("user already exists")
+	ErrIncorrectOwner         = errors.New("not the owner of the quiz")
+	ErrQuizNotFound           = errors.New("quiz not found")
 	ErrStatisticAlreadyExists = errors.New("statistic already exists")
 )

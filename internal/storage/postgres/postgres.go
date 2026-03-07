@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -225,9 +226,8 @@ func (s *Storage) GetQuizID(ctx context.Context, quizInfo *models.InfoModel) (in
 	query := `
 	SELECT id FROM quizzes_info WHERE name = $1 AND owner_id = $2;
 	`
-
+	slog.Debug("here", "quizInfo.Name", quizInfo.Name, "quizInfo.OwnerID", quizInfo.OwnerID)
 	var id int
-
 	err := s.pool.QueryRow(ctx, query, quizInfo.Name, quizInfo.OwnerID).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -236,95 +236,60 @@ func (s *Storage) GetQuizID(ctx context.Context, quizInfo *models.InfoModel) (in
 	return id, nil
 }
 
-// SaveRun сохраняет запуск квиза в БД. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
-func (s *Storage) SaveRun(ctx context.Context, statistic *models.StatisticModel) error {
+// SetRun сохраняет запуск квиза в БД и возвращает ID запуска. Возвращает storage.ErrStatisticAlreadyExists, если статистика по квизу уже есть в БД.
+func (s *Storage) SetRun(ctx context.Context, run *models.HistoryModel) (int, error) {
 	query := `
-	INSERT INTO quizzes_statistic (quiz_id, student_id, started_at) VALUES ($1, $2, $3);
+	INSERT INTO runs_history (name, quiz_id, started_at, finished_at) VALUES ($1, $2, $3, $4) RETURNING id;
 	`
 
-	cmdTag, err := s.pool.Exec(ctx,
-		query,
-		statistic.QuizID,
-		statistic.StudentID,
-		statistic.StartedAt,
-	)
+	var id int
+
+	err := s.pool.QueryRow(ctx, query, run.Name, run.QuizID, run.StartedAt, run.FinishedAt).Scan(&id)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	if cmdTag.RowsAffected() == 0 {
-		return storage.ErrStatisticAlreadyExists
-	}
-
-	return nil
+	return id, nil
 }
 
-// UpdateRun обновляет данные запуска квиза в БД. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
-func (s *Storage) UpdateRun(ctx context.Context, statistic *models.StatisticModel) error {
+// GetRuns возвращает названия запусков по ID. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
+func (s *Storage) GetRuns(ctx context.Context, name string) ([]*models.HistoryModel, error) {
 	query := `
-	UPDATE quizzes_statistic
-	SET answers = $1, score = $2, finished_at = $3
-	WHERE quiz_id = $4 AND student_id = $5;
+	SELECT name, started_at, finished_at
+	FROM runs_history
+	WHERE name = $1;
 	`
 
-	cmdTag, err := s.pool.Exec(
-		ctx,
-		query,
-		statistic.Answers,
-		statistic.Score,
-		statistic.FinishedAt,
-		statistic.QuizID,
-		statistic.StudentID,
-	)
-	if err != nil {
-		return err
-	}
+	var history []*models.HistoryModel
 
-	if cmdTag.RowsAffected() == 0 {
-		return storage.ErrQuizNotFound
-	}
-
-	return nil
-}
-
-// GetRun возвращает запуск по ID. Возвращает storage.ErrQuizNotFound, если статистики по квизу нет в БД.
-func (s *Storage) GetRun(ctx context.Context, id int) (*models.StatisticModel, error) {
-	query := `
-	SELECT quiz_id, student_id, answers, score, started_at, finished_at
-	FROM quizzes_statistic
-	WHERE id = $1;
-	`
-
-	var statistic models.StatisticModel
-
-	err := s.pool.QueryRow(ctx, query, id).Scan(
-		&statistic.QuizID,
-		&statistic.StudentID,
-		&statistic.Answers,
-		&statistic.Score,
-		&statistic.StartedAt,
-		&statistic.FinishedAt,
-	)
+	rows, err := s.pool.Query(ctx, query, name)
 	if err != nil {
 		return nil, err
 	}
 
-	return &statistic, nil
+	history, err = pgx.CollectRows(rows, pgx.RowTo[*models.HistoryModel])
+	if err != nil {
+		return nil, err
+	}
+
+	return history, nil
 }
 
 // GetRunsStatistic возвращает список со статистикой запусков квиза по названию квиза
 func (s *Storage) GetRunsStatistic(
 	ctx context.Context,
-	quizInfo *models.InfoModel,
+	user *models.UserModel,
 ) ([]*models.StatisticModel, error) {
 	query := `
-	SELECT id, quiz_id, student_id, answers, score, started_at, finished_at
+	SELECT qi.name, rh.started_at, rh.finished_at, qs.score
 	FROM quizzes_statistic qs
 	JOIN quizzes_info qi ON qs.quiz_id = qi.id
-	WHERE qi.name = $1;
+	JOIN runs_history rh ON rh.id = qs.run_id
+	WHERE qs.student_id = $1
+	ORDER BY rh.started_at DESC
 	`
 
-	rows, err := s.pool.Query(ctx, query, quizInfo.Name)
+	rows, err := s.pool.Query(ctx, query, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -335,4 +300,41 @@ func (s *Storage) GetRunsStatistic(
 	}
 
 	return statistics, nil
+}
+
+// SaveRunStatistic сохраняет статистику по запуску квиза в БД. Если статистика по студенту и запуску уже есть, то обновляет ее.
+func (s *Storage) SaveRunStatistic(
+	ctx context.Context,
+	statistic *models.StatisticModel,
+	scores map[int]int,
+) error {
+	if len(scores) == 0 {
+		return nil
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	query := `
+		INSERT INTO quizzes_statistic (quiz_id, student_id, run_id, score)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (student_id, run_id) DO UPDATE
+		SET score = EXCLUDED.score
+	`
+	if err != nil {
+		return err
+	}
+
+	slog.Debug("scores", "data", scores)
+
+	for studentID, score := range scores {
+		slog.Debug("SaveRunStatistic: ", "quiz_id", statistic.QuizID, "student_id", studentID, "run_id", statistic.RunID, "score", score)
+		if _, err := tx.Exec(ctx, query, statistic.QuizID, studentID, statistic.RunID, score); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }

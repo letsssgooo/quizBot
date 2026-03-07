@@ -40,6 +40,7 @@ type Bot struct {
 	userIDToChatID      map[int64]int64
 	runIDToOwnerChatID  map[string]int64
 	userIDToAnswersCnt  map[int64]int
+	runIDToDBrunID      map[string]int
 	hasLecturer         bool
 	mu                  sync.Mutex
 }
@@ -72,6 +73,7 @@ func NewBot(
 		userIDToChatID:      make(map[int64]int64),
 		runIDToOwnerChatID:  make(map[string]int64),
 		userIDToAnswersCnt:  make(map[int64]int),
+		runIDToDBrunID:      make(map[string]int),
 	}
 }
 
@@ -328,6 +330,24 @@ func (b *Bot) handleAnswerUpdate(
 		return err
 	}
 
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	res, _ := b.engine.GetResults(runID)
+	for _, participantInfo := range res.Leaderboard {
+		slog.Debug("participant data: ", "tg_id", participantInfo.Participant.TelegramID, "score", participantInfo.Score)
+		err = b.cache.SetStudentScore(
+			dbCtx,
+			runID,
+			participantInfo.Participant.TelegramID,
+			participantInfo.Score,
+			storage.CacheTime,
+		)
+		if err != nil {
+			slog.Error("Cannot save results to cache in answer handler", "error", err)
+		}
+	}
+
 	return nil
 }
 
@@ -398,8 +418,8 @@ func (b *Bot) GetQuizHistory(message *client.Message, name string) error {
 	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
 	defer cancelFunc()
 
-	statistics, err := b.storage.GetRunsStatistic(dbCtx, &models.InfoModel{
-		Name: name,
+	statistics, err := b.storage.GetRunsStatistic(dbCtx, &models.UserModel{
+		TelegramID: message.From.ID,
 	})
 	if err != nil {
 		return err
@@ -411,17 +431,17 @@ func (b *Bot) GetQuizHistory(message *client.Message, name string) error {
 		return err
 	}
 
-	startedAt := statistics[0].StartedAt
-	finishedAt := statistics[0].FinishedAt
-
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Квиз `%s`\n", name))
-	sb.WriteString(fmt.Sprintf("Начался %s\n", startedAt.Format("01.01.2026 00:00:00")))
-	sb.WriteString(fmt.Sprintf("Закончился %s\n", finishedAt.Format("01.01.2026 00:00:00")))
 	sb.WriteString("Студент: количество очков\n")
 
 	for i, statistic := range statistics {
-		sb.WriteString(fmt.Sprintf("%d. %d: %d\n", i + 1, statistic.StudentID, statistic.Score))
+		sb.WriteString(fmt.Sprintf(
+			"%d. %d: %d\n",
+			i+1,
+			statistic.StudentID,
+			statistic.Score),
+		)
 	}
 
 	_, err = b.sender.Message(message.Chat.ID, sb.String(), nil)
@@ -446,7 +466,7 @@ func (b *Bot) GetQuizFile(message *client.Message, name string) error {
 	}
 
 	data, err := b.storage.GetQuizInfo(dbCtx, &models.InfoModel{
-		Name: name,
+		Name:    name,
 		OwnerID: b.runIDToOwnerChatID[runID],
 	})
 	if err != nil {
@@ -491,6 +511,8 @@ func (b *Bot) handleQuizStart(ctx context.Context, quizName string, message *cli
 	if err != nil {
 		return err
 	}
+
+	quiz.OwnerID = message.From.ID
 
 	activeQuizRun, err := b.engine.StartRun(ctx, quiz)
 	if err != nil {
@@ -591,7 +613,6 @@ func (b *Bot) handleIdentificationCallbackUpdate(callback *client.CallbackQuery)
 
 		return err
 	case "Lecturer":
-		// TODO: запись данных преподавателя в БД (если надо, но скорее всего не понадобится)
 		_, err := b.sender.Message(
 			callback.Message.Chat.ID,
 			msgLecturersSuccessfullVerification,
@@ -615,6 +636,38 @@ func (b *Bot) handleQuizStartCallbackUpdate(
 	}
 
 	runID := strings.Split(callback.Data, " ")[1]
+
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	quizName := strings.Join([]string{
+		b.runIDToQuiz[runID].Title,
+		strconv.FormatInt(b.runIDToQuiz[runID].OwnerID,
+			10),
+	},
+		"_")
+	dbID, err := b.storage.GetQuizID(dbCtx, &models.InfoModel{
+		Name:    quizName,
+		OwnerID: b.runIDToQuiz[runID].OwnerID,
+	})
+	if err != nil {
+		return err
+	}
+
+	dbRunID, err := b.storage.SetRun(dbCtx, &models.HistoryModel{
+		Name:       b.runIDToQuiz[runID].Title,
+		QuizID:     dbID,
+		StartedAt:  time.Now(),
+		FinishedAt: nil,
+	})
+
+	b.mu.Lock()
+	b.runIDToDBrunID[runID] = dbRunID
+	b.mu.Unlock()
+
+	if err != nil {
+		return err
+	}
 
 	events, err := b.engine.StartQuiz(ctx, runID)
 	if err != nil {
@@ -847,6 +900,43 @@ func (b *Bot) handleFinishedEvent(runID string) error {
 	}
 
 	fileName := fmt.Sprintf(`Результаты квиза "%s"`, res.QuizTitle)
+
+	dbCtx, cancelFunc := context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	scores, err := b.cache.GetQuizScores(dbCtx, runID)
+	if err != nil {
+		return err
+	}
+
+
+	dbCtx, cancelFunc = context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	quizName := strings.Join([]string{
+		b.runIDToQuiz[runID].Title,
+		strconv.FormatInt(b.runIDToQuiz[runID].OwnerID,
+			10),
+	},
+		"_")
+	quizDbId, err := b.storage.GetQuizID(dbCtx, &models.InfoModel{
+		Name:    quizName,
+		OwnerID: b.runIDToQuiz[res.RunID].OwnerID,
+	})
+	if err != nil {
+		return err
+	}
+
+	dbCtx, cancelFunc = context.WithTimeout(context.Background(), dbQueryTimeout)
+	defer cancelFunc()
+
+	err = b.storage.SaveRunStatistic(dbCtx, &models.StatisticModel{
+		QuizID: quizDbId,
+		RunID:  b.runIDToDBrunID[res.RunID],
+	}, scores)
+	if err != nil {
+		return err
+	}
 
 	return b.sender.Document(ownerChatID, fileName, csvData)
 }

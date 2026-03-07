@@ -89,6 +89,7 @@ func main() {
 		slog.Error("Cannot initialize database", "error", err)
 		os.Exit(1)
 	}
+	defer botStorage.Close()
 
 	botCache, err := rdb.NewClient(gCtx, rdb.Config{
 		Addr:        fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
@@ -103,6 +104,13 @@ func main() {
 		slog.Error("Cannot initialize cache client", "error", err)
 		os.Exit(1)
 	}
+
+	defer func() {
+		err := botCache.Close()
+		if err != nil {
+			slog.Error("Error while closing cache", "error", err)
+		}
+	}()
 
 	telegramBot := bot.NewBot(
 		httpClient,

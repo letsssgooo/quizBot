@@ -20,20 +20,26 @@ type UserModel struct {
 
 // InfoModel определяет модель для таблицы с информацией о квизах
 type InfoModel struct {
-	ID             int
-	Name           string
-	File           []byte
-	CreatedAt      time.Time
-	OwnerID int64
+	ID        int
+	Name      string
+	File      []byte
+	CreatedAt time.Time
+	OwnerID   int64
+}
+
+type HistoryModel struct {
+	ID        int
+	QuizID int
+	Name string
+	StartedAt time.Time
+	FinishedAt *time.Time
 }
 
 // StatisticModel определяет модель для таблицы с результатами квизов
 type StatisticModel struct {
 	ID        int
 	QuizID    int
-	StudentID  int
-	Answers   []string
-	Score    int
-	StartedAt time.Time
-	FinishedAt time.Time
+	StudentID int
+	RunID     int
+	Score int
 }
