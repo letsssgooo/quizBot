@@ -1,0 +1,38 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    container_name: quiz_bot_application
+    ports:
+        - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+  postgres:
+    image: postgres:17
+    container_name: quiz_bot_postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-bookworm
+    container_name: quiz_bot_redis
+    restart: always
+    ports:
+      - "6379:6379"
+volumes:
+    postgres_data:

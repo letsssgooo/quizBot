@@ -21,7 +21,7 @@ import (
 
 const (
 	updatesTimeout = 30
-	dbQueryTimeout = 500 * time.Millisecond
+	dbQueryTimeout = 20 * time.Second
 )
 
 // Bot реализует Telegram бота для квизов.
@@ -85,13 +85,13 @@ runLoop:
 	for { // long polling
 		updates, err := b.fetcher.GetUpdates(ctx, updatesTimeout)
 		if err != nil {
-			return err
+			slog.Error("Error while getting updates", "error", err)
 		}
 
 		for _, update := range updates {
 			err = b.HandleUpdate(ctx, update)
 			if err != nil {
-				return err
+				slog.Error("Error while handling update", "error", err, "update", update)
 			}
 		}
 
@@ -335,7 +335,7 @@ func (b *Bot) handleAnswerUpdate(
 
 	res, _ := b.engine.GetResults(runID)
 	for _, participantInfo := range res.Leaderboard {
-		slog.Debug("participant data: ", "tg_id", participantInfo.Participant.TelegramID, "score", participantInfo.Score)
+		slog.Debug("Participant data: ", "tg_id", participantInfo.Participant.TelegramID, "score", participantInfo.Score)
 		err = b.cache.SetStudentScore(
 			dbCtx,
 			runID,

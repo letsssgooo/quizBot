@@ -32,4 +32,4 @@ const (
 )
 
 // Таймаут
-const timeoutAuth = 500 * time.Millisecond
+const timeoutAuth = 10 * time.Second

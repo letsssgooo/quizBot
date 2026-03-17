@@ -6,6 +6,12 @@ export
 run:
 	go run ${MAIN}
 
+deploy:
+	docker compose up -d
+
+undeploy:
+	docker compose down app
+
 build:
 	go build -o bin/${APP_NAME} ${MAIN}
 
