@@ -153,7 +153,7 @@ Telegram бот для проведения квизов на лекциях.
 
 ### QuizEngine
 
-```go
+```
 type QuizEngine interface {
     // LoadQuiz парсит JSON и создаёт квиз
     LoadQuiz(data []byte) (*Quiz, error)
@@ -194,7 +194,7 @@ type QuizEngine interface {
 
 ### Storage (усложнённая часть)
 
-```go
+```
 type Storage interface {
     // SaveQuiz сохраняет квиз
     SaveQuiz(ctx context.Context, quiz *Quiz) error
@@ -218,7 +218,7 @@ type Storage interface {
 
 ### TelegramClient
 
-```go
+```
 type TelegramClient interface {
     // SendMessage отправляет сообщение
     SendMessage(chatID int64, text string, opts *SendOptions) (*Message, error)
@@ -305,6 +305,75 @@ go build .
 5. Username бота — это то, что вы указали при создании (например, `my_quiz_bot`)
 
 Ссылка для участников формируется как: `https://t.me/<bot-username>?start=join_<runID>`
+
+### Запуск через Makefile
+
+Проект содержит `Makefile` с удобными целями для разработки и деплоя. Make автоматически включает переменные из файла `.env` (Makefile делает `include .env`), поэтому рекомендуется создать `.env` рядом с `Makefile` или передавать переменные при вызове `make`.
+
+Пример `.env` (опционально):
+
+```
+# Путь к входной точке приложения для go run / go build
+MAIN=./cmd/quizbot
+# Имя бинарника при сборке
+APP_NAME=quizbot
+# Строка подключения для миграций (используется целями migrate-up/migrate-down)
+DB_CONN_URL=postgres://user:pass@localhost:5432/quizbot?sslmode=disable
+```
+
+Доступные цели и примеры использования:
+
+- `make run`
+  - Запускает приложение через `go run` (использует переменную `MAIN`).
+  - Пример: `make run MAIN=./cmd/quizbot`
+
+- `make build`
+  - Собирает бинарник в `bin/${APP_NAME}` (использует `MAIN` и `APP_NAME`).
+  - Пример: `make build APP_NAME=quizbot MAIN=./cmd/quizbot`
+
+- `make test`
+  - Запускает `go test ./...` по всему проекту.
+
+- `make clean`
+  - Удаляет папку `bin`.
+
+- `make migrate-up`
+  - Применяет миграции из каталога `migrations` к БД, используя `DB_CONN_URL`.
+  - Пример: `make migrate-up DB_CONN_URL="postgres://user:pass@localhost:5432/quizbot?sslmode=disable"`
+
+- `make migrate-down`
+  - Откатывает миграции (использует `DB_CONN_URL`).
+
+- `make deploy`
+  - Поднимает контейнеры через `docker compose up -d`.
+
+- `make undeploy`
+  - Останавливает и удаляет приложение из Docker: `docker compose down app`.
+
+Примеры полного рабочего сценария:
+
+1) Быстрая локальная сборка и запуск бинарника:
+
+```bash
+make build APP_NAME=quizbot MAIN=./cmd/quizbot
+./bin/quizbot --token="$TELEGRAM_TOKEN" --bot-username="your_bot_username"
+```
+
+2) Запуск без сборки (go run):
+
+```bash
+make run MAIN=./cmd/quizbot --silent
+```
+
+3) Применение миграций:
+
+```bash
+make migrate-up DB_CONN_URL="${DB_CONN_URL}"
+```
+
+Примечания:
+- Если вы используете `.env`, Make автоматически загрузит переменные оттуда; в противном случае передавайте `MAIN`, `APP_NAME` и `DB_CONN_URL` при вызове `make`.
+- Убедитесь, что у вас установлены `migrate` и `docker compose` если вы будете использовать соответствующие цели.
 
 ---
 
